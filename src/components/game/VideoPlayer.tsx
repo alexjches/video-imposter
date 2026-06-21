@@ -1,0 +1,171 @@
+'use client';
+// src/components/game/VideoPlayer.tsx
+// Smart player: YouTube IFrame API / Vimeo / MP4
+
+import { useEffect, useRef, useImperativeHandle, forwardRef, useCallback } from 'react';
+import { parseVideoUrl } from '@/lib/videoParser';
+
+export interface VideoPlayerHandle {
+  play: () => void;
+  pause: () => void;
+}
+
+interface Props {
+  url: string;
+  onEnded?: () => void;
+  onReady?: () => void;
+}
+
+declare global {
+  interface Window {
+    YT: any;
+    onYouTubeIframeAPIReady: () => void;
+    _ytReady: boolean;
+  }
+}
+
+// Load YouTube IFrame API once
+function loadYouTubeAPI(): Promise<void> {
+  return new Promise((resolve) => {
+    if (window.YT?.Player) {
+      resolve();
+      return;
+    }
+    if (window._ytReady) {
+      const poll = setInterval(() => {
+        if (window.YT?.Player) {
+          clearInterval(poll);
+          resolve();
+        }
+      }, 100);
+      return;
+    }
+    window._ytReady = true;
+    const tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(tag);
+    window.onYouTubeIframeAPIReady = resolve;
+  });
+}
+
+export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(
+  ({ url, onEnded, onReady }, ref) => {
+    const parsed = parseVideoUrl(url);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const ytPlayerRef = useRef<any>(null);
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const vimeoRef = useRef<HTMLIFrameElement>(null);
+
+    // Expose play/pause imperatively
+    useImperativeHandle(ref, () => ({
+      play() {
+        if (parsed.type === 'youtube' && ytPlayerRef.current) {
+          ytPlayerRef.current.playVideo();
+        } else if (parsed.type === 'mp4' && videoRef.current) {
+          videoRef.current.play().catch(() => {});
+        } else if (parsed.type === 'vimeo' && vimeoRef.current?.contentWindow) {
+          vimeoRef.current.contentWindow.postMessage('{"method":"play"}', '*');
+        }
+      },
+      pause() {
+        if (parsed.type === 'youtube' && ytPlayerRef.current) {
+          ytPlayerRef.current.pauseVideo();
+        } else if (parsed.type === 'mp4' && videoRef.current) {
+          videoRef.current.pause();
+        } else if (parsed.type === 'vimeo' && vimeoRef.current?.contentWindow) {
+          vimeoRef.current.contentWindow.postMessage('{"method":"pause"}', '*');
+        }
+      },
+    }));
+
+    // YouTube setup
+    useEffect(() => {
+      if (parsed.type !== 'youtube' || !parsed.id) return;
+      let destroyed = false;
+
+      loadYouTubeAPI().then(() => {
+        if (destroyed || !containerRef.current) return;
+
+        const div = document.createElement('div');
+        containerRef.current.appendChild(div);
+
+        ytPlayerRef.current = new window.YT.Player(div, {
+          videoId: parsed.id,
+          playerVars: {
+            autoplay: 0,
+            controls: 0,
+            disablekb: 1,
+            fs: 0,
+            modestbranding: 1,
+            rel: 0,
+            playsinline: 1,
+          },
+          events: {
+            onReady: () => {
+              onReady?.();
+            },
+            onStateChange: (e: any) => {
+              if (e.data === window.YT.PlayerState.ENDED) {
+                onEnded?.();
+              }
+            },
+          },
+        });
+      });
+
+      return () => {
+        destroyed = true;
+        if (ytPlayerRef.current) {
+          try { ytPlayerRef.current.destroy(); } catch {}
+          ytPlayerRef.current = null;
+        }
+        if (containerRef.current) containerRef.current.innerHTML = '';
+      };
+    }, [parsed.id]);
+
+    if (parsed.type === 'youtube') {
+      return (
+        <div
+          ref={containerRef}
+          className="w-full h-full"
+          style={{ pointerEvents: 'none' }}
+        />
+      );
+    }
+
+    if (parsed.type === 'vimeo') {
+      return (
+        <iframe
+          ref={vimeoRef}
+          src={parsed.embedUrl || ''}
+          className="w-full h-full border-0"
+          allow="autoplay; fullscreen"
+          onLoad={() => onReady?.()}
+          style={{ pointerEvents: 'none' }}
+        />
+      );
+    }
+
+    if (parsed.type === 'mp4') {
+      return (
+        <video
+          ref={videoRef}
+          src={parsed.originalUrl}
+          className="w-full h-full object-contain"
+          playsInline
+          onCanPlay={() => onReady?.()}
+          onEnded={onEnded}
+          controls={false}
+        />
+      );
+    }
+
+    return (
+      <div className="w-full h-full flex items-center justify-center text-zinc-500">
+        <p>Unsupported video URL</p>
+      </div>
+    );
+  }
+);
+
+VideoPlayer.displayName = 'VideoPlayer';
