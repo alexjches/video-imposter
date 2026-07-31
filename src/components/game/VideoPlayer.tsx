@@ -161,8 +161,17 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(
     }
 
     return (
-      <div className="w-full h-full flex items-center justify-center text-zinc-500">
-        <p>Unsupported video URL</p>
+      <div
+        className="osd-text"
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'grid',
+          placeItems: 'center',
+          color: 'var(--neon-magenta)',
+        }}
+      >
+        <p>UNSUPPORTED TAPE FORMAT</p>
       </div>
     );
   }

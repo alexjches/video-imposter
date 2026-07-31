@@ -8,34 +8,45 @@
    ------------------------------------------------------------------- */
 @import './vhs.css';
 
-/* Legacy fonts — only still needed by the pre-VHS screens below. Remove
-   together with the legacy block once every screen is reskinned. */
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ── Migration compatibility ─────────────────────────────────────────
-   vhs.css sets `body { overflow: hidden; display: flex }` because the
-   prototype is a fixed-viewport single screen. That breaks scrolling on
-   pages not yet reskinned, so body scroll is restored here. VHS screens
-   don't rely on it — .crt-viewport is position:fixed and clips itself.
-   Screens that want the locked fullscreen frame opt in via <CrtShell>.
-   ------------------------------------------------------------------- */
-body {
-  overflow: auto;
-  display: block;
-}
-
-body.crt-locked {
-  overflow: hidden;
-}
-
 /* ── App additions to the VHS system ─────────────────────────────────
-   Things the static prototype had no need for. Keep this block; it is
-   NOT part of the legacy design below.
+   Fixes and extras the static prototype had no need for. New shared CSS
+   goes here — never in vhs.css, which tracks the reference verbatim.
+
+   Note there is no body override: every route renders inside <CrtShell>,
+   whose .crt-viewport is position:fixed and owns its own scrolling, so
+   vhs.css's locked body (`overflow: hidden; display: flex`) is what we
+   want. A page added outside CrtShell inherits that lock and must scroll
+   an inner container.
    ------------------------------------------------------------------- */
+
+/* vhs.css defines .home-scroll-area as `flex: 1; overflow-y: auto`, then a
+   later "disable scroll on homepage" rule pins it to `height: 100vh` with
+   scrolling off. Inside .crt-viewport that overflows past the header and
+   pushes the footer off-screen, and it clips any page taller than the
+   viewport (the shop). Restore the flex sizing and the scroll. */
+.home-scroll-area {
+  height: auto;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  justify-content: flex-start;
+}
+
+/* The prototype's scrollbar styling only ever covered one shop panel; every
+   VHS screen has scrollable regions, so apply it globally. */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #0d0d16; }
+::-webkit-scrollbar-thumb {
+  background: #33334a;
+  border: 2px solid #0d0d16;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--neon-magenta); }
 
 /* Confetti particle, spawned imperatively by ResultsScreen. */
 .confetti-particle {
@@ -51,376 +62,3 @@ body.crt-locked {
   100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   LEGACY — the pre-VHS violet/glass design. Spec section 21 says to
-   discard this look; it is kept only so un-reskinned screens keep
-   rendering during the migration. Do NOT extend it or build new UI on
-   it. Delete this whole block when the last screen moves to VHS.
-   ═══════════════════════════════════════════════════════════════════ */
-
-/* ── CSS Custom Properties ─────────────────────────────────── */
-:root {
-  --neon-violet: rgba(139, 92, 246, 0.6);
-  --neon-emerald: rgba(16, 185, 129, 0.6);
-  --neon-rose: rgba(244, 63, 94, 0.6);
-  --glass-bg: rgba(20, 20, 40, 0.7);
-  --glass-border: rgba(139, 92, 246, 0.2);
-  --scrollbar-thumb: rgba(139, 92, 246, 0.4);
-  --scrollbar-track: rgba(10, 10, 15, 0.5);
-}
-
-/* ── Base Reset ────────────────────────────────────────────── */
-*, *::before, *::after {
-  box-sizing: border-box;
-}
-
-html {
-  scroll-behavior: smooth;
-}
-
-body {
-  @apply bg-bg-950 text-zinc-100 font-sans antialiased;
-  min-height: 100dvh;
-  background-image:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(139, 92, 246, 0.15), transparent),
-    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(16, 185, 129, 0.05), transparent);
-}
-
-/* ── Custom Scrollbar ──────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--scrollbar-track); border-radius: 3px; }
-::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(139, 92, 246, 0.7); }
-
-/* ── Typography ────────────────────────────────────────────── */
-h1, h2, h3, h4, h5, h6 {
-  @apply font-bold tracking-tight;
-}
-
-/* ── Glass Morphism ────────────────────────────────────────── */
-.glass {
-  background: var(--glass-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--glass-border);
-}
-
-.glass-dark {
-  background: rgba(10, 10, 15, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(139, 92, 246, 0.15);
-}
-
-/* ── Neon Glows ────────────────────────────────────────────── */
-.neon-violet {
-  box-shadow: 0 0 20px var(--neon-violet), 0 0 40px rgba(139, 92, 246, 0.2);
-}
-
-.neon-emerald {
-  box-shadow: 0 0 20px var(--neon-emerald), 0 0 40px rgba(16, 185, 129, 0.2);
-}
-
-.neon-rose {
-  box-shadow: 0 0 20px var(--neon-rose), 0 0 40px rgba(244, 63, 94, 0.2);
-}
-
-.neon-text-violet {
-  text-shadow: 0 0 20px rgba(139, 92, 246, 0.8), 0 0 40px rgba(139, 92, 246, 0.4);
-}
-
-.neon-text-emerald {
-  text-shadow: 0 0 20px rgba(16, 185, 129, 0.8), 0 0 40px rgba(16, 185, 129, 0.4);
-}
-
-.neon-text-rose {
-  text-shadow: 0 0 20px rgba(244, 63, 94, 0.8), 0 0 40px rgba(244, 63, 94, 0.4);
-}
-
-/* ── Gradient Text ─────────────────────────────────────────── */
-.gradient-text {
-  background: linear-gradient(135deg, #c4b5fd 0%, #8b5cf6 50%, #6ee7b7 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.gradient-text-rose {
-  background: linear-gradient(135deg, #fda4af 0%, #f43f5e 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* ── Card Styles ───────────────────────────────────────────── */
-.card {
-  @apply glass rounded-2xl p-6 shadow-card;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.card:hover {
-  transform: translateY(-2px);
-  @apply shadow-card-hover;
-}
-
-/* ── Grid Background ───────────────────────────────────────── */
-.grid-bg {
-  background-image:
-    linear-gradient(rgba(139, 92, 246, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(139, 92, 246, 0.04) 1px, transparent 1px);
-  background-size: 50px 50px;
-}
-
-/* ── Avatar Emoji ──────────────────────────────────────────── */
-.avatar-emoji {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  font-size: 1.5rem;
-  line-height: 1;
-  user-select: none;
-}
-
-/* ── Input Styles ──────────────────────────────────────────── */
-.input-field {
-  @apply w-full bg-bg-800 border border-bg-600 rounded-xl px-4 py-3 text-zinc-100 placeholder-zinc-500;
-  @apply focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.input-field:focus {
-  box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.3), 0 0 20px rgba(139, 92, 246, 0.1);
-}
-
-/* ── Button Styles ─────────────────────────────────────────── */
-.btn {
-  @apply inline-flex items-center justify-center gap-2 font-semibold rounded-xl px-5 py-3 cursor-pointer;
-  @apply transition-all duration-200 select-none;
-  @apply disabled:opacity-40 disabled:cursor-not-allowed;
-}
-
-.btn:not(:disabled):active {
-  transform: scale(0.97);
-}
-
-.btn-primary {
-  @apply btn bg-violet-600 hover:bg-violet-500 text-white;
-}
-
-.btn-primary:not(:disabled):hover {
-  box-shadow: 0 0 20px rgba(139, 92, 246, 0.5);
-}
-
-.btn-success {
-  @apply btn bg-emerald-500 hover:bg-emerald-400 text-white;
-}
-
-.btn-success:not(:disabled):hover {
-  box-shadow: 0 0 20px rgba(16, 185, 129, 0.5);
-}
-
-.btn-danger {
-  @apply btn bg-rose-600 hover:bg-rose-500 text-white;
-}
-
-.btn-danger:not(:disabled):hover {
-  box-shadow: 0 0 20px rgba(244, 63, 94, 0.5);
-}
-
-.btn-ghost {
-  @apply btn bg-transparent hover:bg-bg-700 text-zinc-300 hover:text-white border border-bg-600 hover:border-zinc-500;
-}
-
-.btn-sm {
-  @apply px-3 py-2 text-sm rounded-lg;
-}
-
-.btn-lg {
-  @apply px-8 py-4 text-lg rounded-2xl;
-}
-
-/* ── Animated Border ───────────────────────────────────────── */
-@keyframes border-spin {
-  to { --border-angle: 360deg; }
-}
-
-.animated-border {
-  --border-angle: 0deg;
-  background-image:
-    conic-gradient(
-      from var(--border-angle),
-      transparent 20%,
-      rgba(139, 92, 246, 0.8),
-      transparent 80%
-    );
-  animation: border-spin 4s linear infinite;
-}
-
-/* ── Scanning line animation (for playing phase) ─────────────── */
-@keyframes scan-line {
-  0% { top: -5%; }
-  100% { top: 105%; }
-}
-
-.scan-line {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.8), transparent);
-  animation: scan-line 3s linear infinite;
-  pointer-events: none;
-}
-
-/* ── Pulse ring ────────────────────────────────────────────── */
-@keyframes ping-slow {
-  0% { transform: scale(1); opacity: 0.6; }
-  100% { transform: scale(1.8); opacity: 0; }
-}
-
-.pulse-ring {
-  animation: ping-slow 2s ease-out infinite;
-}
-
-/* ── Vote bar animation ────────────────────────────────────── */
-.vote-bar {
-  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* ── Page transitions ──────────────────────────────────────── */
-.page-enter {
-  animation: fadeIn 0.4s ease-out;
-}
-
-/* ── 3D card flip for results ──────────────────────────────── */
-.flip-container {
-  perspective: 1200px;
-}
-
-.flip-card {
-  transform-style: preserve-3d;
-  transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.flip-card.flipped {
-  transform: rotateY(180deg);
-}
-
-.flip-front, .flip-back {
-  backface-visibility: hidden;
-  position: absolute;
-  inset: 0;
-}
-
-.flip-back {
-  transform: rotateY(180deg);
-}
-
-/* ── Shake animation (for error states) ───────────────────── */
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  15% { transform: translateX(-6px); }
-  35% { transform: translateX(6px); }
-  55% { transform: translateX(-4px); }
-  75% { transform: translateX(4px); }
-  90% { transform: translateX(-2px); }
-}
-
-.animate-shake {
-  animation: shake 0.4s ease-in-out;
-}
-
-/* ── Float animation ───────────────────────────────────────── */
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
-}
-
-.animate-float {
-  animation: float 3s ease-in-out infinite;
-}
-
-/* ── Slide up animation ────────────────────────────────────── */
-@keyframes slideUp {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
-.animate-slide-up {
-  animation: slideUp 0.5s ease-out forwards;
-}
-
-/* ── Fade in animation ─────────────────────────────────────── */
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.5s ease-out forwards;
-}
-
-/* ── Bounce in animation ───────────────────────────────────── */
-@keyframes bounceIn {
-  0% { transform: scale(0.8); opacity: 0; }
-  60% { transform: scale(1.05); opacity: 1; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-.animate-bounce-in {
-  animation: bounceIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-}
-
-/* ── Pulse slow ────────────────────────────────────────────── */
-@keyframes pulseSlow {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.6; transform: scale(0.95); }
-}
-
-.animate-pulse-slow {
-  animation: pulseSlow 2.5s ease-in-out infinite;
-}
-
-/* ── Scale in ──────────────────────────────────────────────── */
-@keyframes scaleIn {
-  from { transform: scale(0.9); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
-
-.animate-scale-in {
-  animation: scaleIn 0.3s ease-out forwards;
-}
-
-/* ── Avatar frames (shop cosmetics) ───────────────────────── */
-.frame-gold {
-  box-shadow: 0 0 0 3px #fbbf24, 0 0 15px rgba(251,191,36,0.5);
-}
-
-.frame-neon {
-  box-shadow: 0 0 0 3px #38bdf8, 0 0 15px rgba(56,189,248,0.6), 0 0 30px rgba(56,189,248,0.3);
-}
-
-.frame-rainbow {
-  animation: rainbow-border 3s linear infinite;
-}
-
-@keyframes rainbow-border {
-  0% { box-shadow: 0 0 0 3px #f43f5e; }
-  16% { box-shadow: 0 0 0 3px #f97316; }
-  33% { box-shadow: 0 0 0 3px #eab308; }
-  50% { box-shadow: 0 0 0 3px #22c55e; }
-  66% { box-shadow: 0 0 0 3px #3b82f6; }
-  83% { box-shadow: 0 0 0 3px #a855f7; }
-  100% { box-shadow: 0 0 0 3px #f43f5e; }
-}
-
-.frame-fire {
-  box-shadow: 0 0 0 3px #f97316, 0 0 15px rgba(249,115,22,0.6), 0 0 30px rgba(239,68,68,0.3);
-  animation: fire-pulse 1s ease-in-out infinite alternate;
-}
-
-@keyframes fire-pulse {
-  from { box-shadow: 0 0 0 3px #f97316, 0 0 10px rgba(249,115,22,0.4); }
-  to { box-shadow: 0 0 0 3px #ef4444, 0 0 25px rgba(249,115,22,0.8), 0 0 40px rgba(239,68,68,0.4); }
-}

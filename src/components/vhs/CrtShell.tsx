@@ -47,12 +47,6 @@ export function CrtShell({
     localStorage.setItem(CRT_PREF_KEY, crtOn ? 'on' : 'off');
   }, [crtOn]);
 
-  // The shell owns the full viewport, so suppress body scroll while mounted.
-  useEffect(() => {
-    document.body.classList.add('crt-locked');
-    return () => document.body.classList.remove('crt-locked');
-  }, []);
-
   return (
     <div
       id="crt-viewport"

@@ -145,14 +145,60 @@ export interface ParsedVideo {
   embedUrl: string | null;
 }
 
-// Shop types
+// ─── Shop / cosmetics (spec section 10) ──────────────────────────────
+// The three cosmetic slots the VHS shop sells, per
+// vhs-frontend-example/home.html.
+export type CosmeticCategory = 'tape-skin' | 'vcr-skin' | 'tape-label';
+
+/**
+ * Colours a skin repaints its preview with. A tape and a VCR share the shape
+ * because their parts line up: the tape's spool window is the VCR's door
+ * flap, the tape's spool gears are the VCR's status LED.
+ */
+export interface CosmeticPalette {
+  /** Outer shell — may be a gradient. */
+  body: string;
+  border: string;
+  tagBg: string;
+  tagColor: string;
+  /** Tape's paper label / VCR's LCD. */
+  labelBg: string;
+  labelBorder: string;
+  titleColor: string;
+  subColor: string;
+  /** Tape's spool window / VCR's door flap. */
+  innerBg: string;
+  /** Spool bodies / VCR slot trim and buttons. */
+  accentDark: string;
+  /** Spool gears / VCR status LED. */
+  accentBright: string;
+}
+
+/** A tape-label sticker: styling plus the two lines printed on it. */
+export interface CosmeticSticker {
+  bg: string;
+  color: string;
+  border: string;
+  text: string;
+  sub: string;
+}
+
 export interface ShopItem {
   id: string;
   name: string;
-  description: string;
+  category: CosmeticCategory;
   price: number;
-  type: 'avatar_frame' | 'avatar_emoji' | 'theme' | 'cosmetic';
-  value: string;       // the actual value (emoji, css class, etc.)
-  icon: string;        // display emoji
-  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  /** Short badge printed on the preview. */
+  tag: string;
+  /** Two-line readout on the preview's LCD. */
+  title: string;
+  subLeft: string;
+  subRight: string;
+  /** Set on tape-skin / vcr-skin items. */
+  palette?: CosmeticPalette;
+  /** Set on tape-label items. */
+  sticker?: CosmeticSticker;
 }
+
+/** Which item is equipped in each slot; null means the stock look. */
+export type EquippedCosmetics = Record<CosmeticCategory, string | null>;

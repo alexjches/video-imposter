@@ -62,7 +62,7 @@ Roles are covered by the same rule: `game:assigned` carries **only** `videoUrl`.
 
 **Video playback** — `src/components/game/VideoPlayer.tsx` handles YouTube (IFrame API, loaded once behind a global `window._ytReady` guard), Vimeo (postMessage), and MP4 (`<video>`) behind one imperative `play()`/`pause()` handle; `src/lib/videoParser.ts` picks the type. Sync works by each client emitting `game:syncReady` on load, then the server broadcasting `game:play` with a `playAt` timestamp ~1s out that clients schedule against. Players render with `pointerEvents: 'none'` and no controls. The lockdown player vars the spec asks for in §5 (`controls=0`, `disablekb=1`, `fs=0`, `modestbranding=1`, `rel=0`) are already set.
 
-**Coins/shop are client-side only.** `src/hooks/useShop.ts` reads/writes `localStorage` (`imposter_coins`, `imposter_shop_owned`). The server computes a `coinReward` in `game:results` but nothing persists it. Guest identity is likewise localStorage (`imposter_guest_name`, `imposter_guest_avatar`).
+**Coins/shop are client-side only, and cosmetics are inert.** `src/hooks/useShop.ts` reads/writes `localStorage` (`imposter_coins`, `imposter_shop_owned`, `imposter_shop_equipped`). The server computes a `coinReward` in `game:results` but nothing persists it, so clearing site data wipes the wallet. `/shop` sells the three cosmetic slots from the prototype — tape skins, VCR skins, tape labels (`SHOP_ITEMS`) — and equipping writes to localStorage, but **nothing reads `equipped` outside the shop**: a bought skin does not yet repaint the lobby consoles or the results cassette. Wiring that up belongs with the Phase 3 currency move. Guest identity is likewise localStorage (`imposter_guest_name`, `imposter_guest_avatar`).
 
 **Auth** — NextAuth, JWT sessions, credentials (bcrypt) plus Google/Discord providers conditionally spliced in only when their env vars exist. The `jwt`/`session` callbacks thread the DB user id onto `session.user.id`, passed as the optional `userId` on `room:create`/`room:join`.
 
@@ -84,7 +84,8 @@ Still outstanding:
 | Accounts | Email / Google / **Apple**; Discord later (§11) | Email / Google / **Discord**; no Apple | 2 |
 | Host controls | Manual host transfer, mid-lobby settings changes (§4) | Auto-transfer on host leave only | 2 |
 | Reconnect | — | Identity is `socket.id`, so a refresh makes a new player and drops you from the round | — |
-| Not built | Emoji reactions during video (§5), premium (§12), ads (§13), shop/loot boxes (§10), profanity filter (§17), report/block (§17), friends (§11), matchmaking (§16) | — | 2–4 |
+| Cosmetics | Bought skins change how you look in game (§10) | Shop UI + ownership work; `equipped` is never read outside `/shop` | 3 |
+| Not built | Emoji reactions during video (§5), premium (§12), ads (§13), loot boxes (§10), profanity filter (§17), report/block (§17), friends (§11), matchmaking (§16) | — | 2–4 |
 
 The reconnect row is not in the spec but blocks several things that are (persistent currency, host transfer surviving a refresh). It needs room state keyed on something more durable than `socket.id`.
 
@@ -92,8 +93,8 @@ The reconnect row is not in the spec but blocks several things that are (persist
 
 - Import via `@/*` → `src/*`.
 - **Styling is the VHS/CRT system in `src/app/vhs.css`** — a verbatim copy of `vhs-frontend-example/styles.css`, imported first by `globals.css`. Build with its classes (`btn-brutal`, `brutal-card`, `vhs-player`, `osd-menu`, `osd-text`, `modal-card`, `brutal-input`, `view-panel`, `gartic-*`, `lobby-item-*`). Don't edit `vhs.css` — it tracks the reference; app-only additions go in the "App additions" block in `globals.css`.
-  - Every route except `/shop` is ported: `page.tsx` (landing), `/dashboard` (lobby router), `/login`, `/signup`, and all five room phases. `<CrtShell>` supplies the viewport frame — pass `home` for the scrollable marketing/console layout, omit it for the in-game `.view-panel` stack.
-  - The LEGACY block at the bottom of `globals.css` (`glass`, `card`, `btn-primary`, `input-field`, `grid-bg`, `neon-*`) plus the `tailwind.config.js` violet palette are the *old* look spec §21 discards. Only `/shop` still uses them. Don't extend that system, and delete the block once the shop moves.
+  - **Every route is ported** — `page.tsx` (landing), `/dashboard` (lobby router), `/login`, `/signup`, `/shop`, and all five room phases. The old violet/glass system is gone: no `glass`, `card`, `btn-primary`, `input-field`, `grid-bg`, or `neon-*` classes remain, and `tailwind.config.js` no longer carries a colour scale. Tailwind survives for layout utilities only (`flex`, `inset-0`, `w-full`); colours come from the `--neon-*` custom props.
+  - `<CrtShell>` supplies the viewport frame. Pass `home` for the scrollable marketing/console layout (landing, dashboard, auth, shop); omit it for the in-game `.view-panel` stack. It sets no body classes — `.crt-viewport` is `position: fixed` and vhs.css already locks body scroll, so a page rendered *outside* CrtShell inherits that lock and must scroll an inner container.
 - Server-side sanitize all user input at the handler: words stripped of whitespace and capped at 30 chars, chat at 300, `wordsPerPlayer` clamped 1–10, `imposterCount` clamped. Keep this up for new events.
 - Env: `.env.example` is the template; `.env` and `.env.local` exist locally and are gitignored. `DATABASE_URL` points at SQLite (`file:./dev.db`); switching to Postgres also means editing `provider` in `prisma/schema.prisma`.
 - YouTube access stays on the official IFrame API — no scraping or downloading (spec §5, ToS).
