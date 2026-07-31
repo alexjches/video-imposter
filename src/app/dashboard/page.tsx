@@ -16,20 +16,14 @@ import Link from 'next/link';
 
 const GUEST_AVATARS = ['🎮', '👾', '🕵️', '🎭', '🦊', '🐺', '🦁', '🐸'];
 
-// Section 20: 'none' means the lobby talks on its own Discord/FaceTime call
-// and the app shows no chat at all.
-const CHAT_MODES: { id: ChatType; icon: string; label: string }[] = [
-  { id: 'text', icon: '⌨️', label: 'TEXT' },
-  { id: 'voice', icon: '🎤', label: 'VOICE' },
-  { id: 'video', icon: '📷', label: 'VIDEO' },
-  { id: 'none', icon: '🔇', label: 'EXTERNAL' },
-];
-
-const CHAT_PILL: Record<ChatType, string> = {
-  text: 'magenta',
-  voice: 'green',
-  video: 'cyan',
-  none: 'yellow',
+// Display lookup for the lobby list. Covers all four modes even though the
+// host form only offers two — voice and video are Phase 2 (spec §16), and a
+// room carrying one of them must still render a sensible pill.
+const CHAT_LABELS: Record<ChatType, { icon: string; label: string; pill: string }> = {
+  text: { icon: '⌨️', label: 'TEXT', pill: 'magenta' },
+  voice: { icon: '🎤', label: 'VOICE', pill: 'green' },
+  video: { icon: '📷', label: 'VIDEO', pill: 'cyan' },
+  none: { icon: '🔇', label: 'EXTERNAL', pill: 'yellow' },
 };
 
 const inputStyle: React.CSSProperties = {
@@ -358,9 +352,8 @@ function DashboardContent() {
                             <span className="lobby-pill yellow">
                               {cat ? `${cat.icon} ${cat.name.toUpperCase()}` : '⚙️ CUSTOM'}
                             </span>
-                            <span className={`lobby-pill ${CHAT_PILL[chat]}`}>
-                              {CHAT_MODES.find((m) => m.id === chat)?.icon}{' '}
-                              {CHAT_MODES.find((m) => m.id === chat)?.label}
+                            <span className={`lobby-pill ${CHAT_LABELS[chat].pill}`}>
+                              {CHAT_LABELS[chat].icon} {CHAT_LABELS[chat].label}
                             </span>
                           </div>
 
@@ -470,31 +463,38 @@ function DashboardContent() {
                     </div>
                   </div>
 
+                  {/* Phase 1 is text-only plus the 'none' external option
+                      (spec §16); voice and video lobbies arrive in Phase 2. */}
                   <div>
-                    <label className="form-section-title">💬 COMMUNICATE MODE</label>
-                    <div
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(4, 1fr)',
-                        gap: 10,
-                        marginTop: 5,
-                      }}
-                    >
-                      {CHAT_MODES.map((m) => (
-                        <button
-                          key={m.id}
-                          className={`btn-brutal option-btn chat-btn${
-                            chatType === m.id ? ' active' : ''
-                          }`}
-                          onClick={() => setChatType(m.id)}
-                        >
-                          <span style={{ fontSize: '1.3rem', display: 'block', marginBottom: 2 }}>
-                            {m.icon}
-                          </span>
-                          {m.label}
-                        </button>
-                      ))}
+                    <label className="form-section-title">💬 IN-APP TEXT CHAT</label>
+                    <div style={{ display: 'flex', gap: 10, marginTop: 5 }}>
+                      <button
+                        id="opt-chat-text"
+                        className={`btn-brutal option-btn flex-1${
+                          chatType === 'text' ? ' active' : ''
+                        }`}
+                        onClick={() => setChatType('text')}
+                      >
+                        ⌨️ ON
+                      </button>
+                      <button
+                        id="opt-chat-none"
+                        className={`btn-brutal option-btn flex-1${
+                          chatType === 'none' ? ' active' : ''
+                        }`}
+                        onClick={() => setChatType('none')}
+                      >
+                        🔇 OFF
+                      </button>
                     </div>
+                    <p
+                      className="osd-text"
+                      style={{ fontSize: '0.75rem', color: '#888', marginTop: 6 }}
+                    >
+                      {chatType === 'text'
+                        ? 'Players argue in the app during the 90s window.'
+                        : 'No in-app chat — for lobbies already on Discord or FaceTime.'}
+                    </p>
                   </div>
 
                   <div>
@@ -609,7 +609,7 @@ function DashboardContent() {
                   disabled={hosting || !customValid}
                   onClick={hostRoom}
                 >
-                  {hosting ? 'FORMATTING…' : 'INSERT BLANK TAPE & HOST ⏵'}
+                  {hosting ? 'FORMATTING…' : 'HOST ⏵'}
                 </button>
               </div>
             </div>
