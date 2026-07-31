@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>📼 Tape Suspect — Home & Cosmetics Shop</title>
+  <meta name="description" content="Tape Suspect — the retro VHS social deduction game. Browse and buy cosmetics for your VHS tapes and VCR players.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="home-body">
+
+  <!-- ── Main CRT Viewport Monitor ──────────────────────────── -->
+  <div id="crt-viewport" class="crt-viewport crt-active home-viewport">
+
+    <!-- ── App Header ─────────────────────────────────────────── -->
+    <header>
+      <div class="logo-container">
+        <img src="logo.png" alt="Tape Suspect Logo" class="site-logo">
+        <h1 class="brutal-title" style="font-size: 2.2rem;">TAPE SUSPECT</h1>
+        <span class="osd-text" style="color: var(--neon-magenta); font-weight: bold; margin-left: 10px;">HOME</span>
+      </div>
+      
+      <div class="header-controls">
+        <!-- Coin Balance -->
+        <div id="coin-balance" class="coin-balance-display">
+          <span class="coin-icon">🪙</span>
+          <span id="coin-amount" class="coin-amount">500</span>
+          <span class="coin-label">REWIND COINS</span>
+        </div>
+        <!-- CRT Filter Toggle button -->
+        <button id="crt-toggle" class="btn-brutal yellow">VHS EFFECT: ON</button>
+      </div>
+    </header>
+    
+    <!-- Camcorder HUD Overlays -->
+    <div class="camcorder-hud">
+      <div class="hud-row">
+        <div class="rec-indicator osd-text">
+          <span id="rec-dot" class="rec-dot active"></span>
+          <span>REC</span>
+        </div>
+      </div>
+      <div class="hud-bracket-tl"></div>
+      <div class="hud-bracket-tr"></div>
+      <div class="hud-bracket-bl"></div>
+      <div class="hud-bracket-br"></div>
+    </div>
+
+    <!-- ── Static white noise & tracking drifts ─────────────── -->
+    <div class="static-noise"></div>
+    <div class="tracking-line"></div>
+
+    <!-- ── Scrollable Content Area ──────────────────────────── -->
+    <div class="home-scroll-area">
+
+      <!-- ══════════════════════════════════════════════════════ -->
+      <!--  GARTIC STYLE HERO/LOBBY BOX                          -->
+      <!-- ══════════════════════════════════════════════════════ -->
+      <section id="hero-section" class="gartic-hero-section">
+        <div class="gartic-container-wrapper">
+          <!-- Central Box with top logo -->
+          <div class="gartic-main-box">
+            <!-- Floating logo on top border -->
+            <div class="gartic-logo-top">
+              <img src="logo.png" alt="Tape Suspect Logo" class="gartic-logo-img">
+            </div>
+
+            <!-- Inner Layout (columns) -->
+            <div class="gartic-inner-grid">
+              
+              <!-- LEFT PANEL: Play Actions -->
+              <div class="gartic-panel play-setup-panel">
+                <h3 class="gartic-panel-title">Access Deck</h3>
+                
+                <div class="player-setup-intro">
+                  <p class="intro-heading">INSERT PROFILE CASSETTE</p>
+                  <p class="intro-sub">Choose your access mode to enter the local lobby host.</p>
+                </div>
+                
+                <div class="setup-actions">
+                  <button id="btn-play-guest" class="btn-brutal magenta large-brutal-btn">
+                    👤 PLAY AS GUEST
+                  </button>
+                  <button id="btn-play-signup" class="btn-brutal cyan large-brutal-btn">
+                    🔑 SIGN UP / SIGN IN
+                  </button>
+                </div>
+                
+                <p class="setup-note osd-text">SYSTEM STATUS: ONLINE</p>
+              </div>
+
+              <!-- RIGHT PANEL: How to Play -->
+              <div class="gartic-panel how-to-play-panel">
+                <h3 class="gartic-panel-title">How To Play</h3>
+                
+                <div class="carousel-container">
+                  <!-- Slides -->
+                  <div class="carousel-track">
+                    
+                    <!-- Slide 1 -->
+                    <div class="carousel-slide active-slide">
+                      <div class="slide-graphic">
+                        <div class="vhs-tape shop-tape-preview spinning-spools" style="background-color:#0d0d1a; border-color:#00f0ff; width: 140px; margin: 0 auto;">
+                          <div class="tape-tag" style="background:#00f0ff; color:#000; font-size: 0.6rem;">TAPE_01</div>
+                          <div class="tape-window-panel" style="margin-top: 5px;">
+                            <div class="spool spinning"><div class="spool-gear"></div></div>
+                            <div class="spool spinning"><div class="spool-gear"></div></div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="slide-content">
+                        <h4 class="slide-title">1. INSERT TAPE</h4>
+                        <p class="slide-desc">All crewmates insert their tape to watch. However, one tape is formatted differently (The Suspect).</p>
+                      </div>
+                    </div>
+
+                    <!-- Slide 2 -->
+                    <div class="carousel-slide">
+                      <div class="slide-graphic">
+                        <div class="crt-mini-screen">
+                          <div class="rec-icon">● PLAY</div>
+                          <div class="static-mini"></div>
+                          <span class="mini-glitch-text">VIDEO FEED</span>
+                        </div>
+                      </div>
+                      <div class="slide-content">
+                        <h4 class="slide-title">2. WATCH THE FEED</h4>
+                        <p class="slide-desc">Watch the video stream carefully. Try to match the visual clues on the tape with your teammates.</p>
+                      </div>
+                    </div>
+
+                    <!-- Slide 3 -->
+                    <div class="carousel-slide">
+                      <div class="slide-graphic">
+                        <div class="chat-mini-bubble">
+                          <span class="chat-author" style="color:var(--neon-magenta)">Alex:</span> "I see a music video!"
+                        </div>
+                        <div class="chat-mini-bubble right">
+                          <span class="chat-author" style="color:var(--neon-cyan)">Sam:</span> "Wait, I hear a cartoon theme?!"
+                        </div>
+                      </div>
+                      <div class="slide-content">
+                        <h4 class="slide-title">3. DEBATE & CHAT</h4>
+                        <p class="slide-desc">Communicate with other players in real time. Describe your tape without giving away too much!</p>
+                      </div>
+                    </div>
+
+                    <!-- Slide 4 -->
+                    <div class="carousel-slide">
+                      <div class="slide-graphic">
+                        <div class="eject-graphic">
+                          <div class="eject-button-mini">⏏ EJECT</div>
+                          <div class="ejecting-mini-tape">📼 SUSPECT_TAPE</div>
+                        </div>
+                      </div>
+                      <div class="slide-content">
+                        <h4 class="slide-title">4. SPOT THE SUSPECT</h4>
+                        <p class="slide-desc">Vote to eject the VCR tape of the player you suspect has the wrong video. Correct guess wins!</p>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  <!-- Carousel Controls -->
+                  <div class="carousel-controls">
+                    <button class="carousel-arrow prev-arrow" id="carousel-prev" aria-label="Previous Slide">◀</button>
+                    <div class="carousel-dots">
+                      <span class="carousel-dot active-dot" data-slide="0"></span>
+                      <span class="carousel-dot" data-slide="1"></span>
+                      <span class="carousel-dot" data-slide="2"></span>
+                      <span class="carousel-dot" data-slide="3"></span>
+                    </div>
+                    <button class="carousel-arrow next-arrow" id="carousel-next" aria-label="Next Slide">▶</button>
+                  </div>
+
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Central Box Footer Info -->
+            <div class="gartic-box-footer">
+              <div class="balance-pill">
+                <span class="coin-icon">🪙</span>
+                <span id="box-coin-amount" class="box-coin-amount">500</span>
+                <span class="coin-label">REWIND COINS</span>
+              </div>
+              <a href="#shop-section" class="scroll-to-shop-link" id="box-shop-btn">
+                <span>🛒</span> ENTER COSMETICS SHOP
+              </a>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════════ -->
+      <!--  COSMETICS SHOP MODAL                                 -->
+      <!-- ══════════════════════════════════════════════════════ -->
+      <div id="shop-setup-modal" class="modal-overlay">
+        <div class="modal-card shop-modal-card">
+          <button class="modal-close-btn" id="shop-modal-close">&times;</button>
+          <section id="shop-section" class="shop-section">
+        <div class="shop-header">
+          <h2 class="brutal-title" style="font-size: 2.4rem;">🛒 COSMETICS SHOP</h2>
+          <p class="osd-text" style="color: #aaa; margin-top: 6px;">Customize your VHS tapes & VCR players</p>
+        </div>
+
+        <!-- Shop Category Tabs -->
+        <div class="shop-tabs">
+          <button class="shop-tab active" data-category="tape-skins">
+            <span>📼</span> VHS TAPE SKINS
+          </button>
+          <button class="shop-tab" data-category="vcr-skins">
+            <span>📟</span> VCR PLAYER SKINS
+          </button>
+          <button class="shop-tab" data-category="tape-labels">
+            <span>🏷️</span> TAPE LABELS
+          </button>
+        </div>
+
+        <!-- ── TAPE SKINS GRID ──────────────────────────────── -->
+        <div id="grid-tape-skins" class="shop-grid active-grid">
+
+          <!-- Neon Noir -->
+          <div class="shop-item-card" data-item-id="tape-neon-noir" data-price="150" data-category="tape-skins">
+            <div class="shop-item-preview">
+              <div class="vhs-tape shop-tape-preview" style="background-color:#0a0a12; border-color:#ff0077; box-shadow:4px 4px 0px #ff0077;">
+                <div class="tape-tag" style="background:#ff0077; color:#fff;">NEON NOIR</div>
+                <div class="tape-label" style="background: linear-gradient(135deg, #1a0020, #0a0018); border-color: #ff0077;">
+                  <div class="tape-title" style="color:#ff0077; font-size:0.85rem;">NEON NOIR</div>
+                  <div class="tape-sublabel"><span>LIMITED</span><span>● SP</span></div>
+                </div>
+                <div class="tape-window-panel" style="background:#05050a; border-color: #ff0077;">
+                  <div class="spool" style="background:#1a001a; border-color:#ff0077;"><div class="spool-gear" style="background:#ff0077;"></div></div>
+                  <div class="spool" style="background:#1a001a; border-color:#ff0077;"><div class="spool-gear" style="background:#ff0077;"></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="shop-item-info">
+              <div class="shop-item-name">Neon Noir</div>
+              <div class="shop-item-price"><span class="coin-icon">🪙</span> 150</div>
+            </div>
+            <button class="btn-brutal magenta shop-buy-btn">BUY</button>
+            <button class="btn-brutal cyan shop-equip-btn" style="display:none;">EQUIP</button>
+            <div class="shop-owned-stamp">OWNED ✓</div>
+          </div>
+
+          <!-- Retro Sunset -->
+          <div class="shop-item-card" data-item-id="tape-retro-sunset" data-price="200" data-category="tape-skins">
+            <div class="shop-item-preview">
+              <div class="vhs-tape shop-tape-preview" style="background-color:#2b1800; border-color:#ff8800; box-shadow:4px 4px 0px #ff8800;">
+                <div class="tape-tag" style="background:#ff8800; color:#000;">RETRO SUNSET</div>
+                <div class="tape-label" style="background: linear-gradient(135deg, #ff8800, #ff4400); border-color: #000;">
+                  <div class="tape-title" style="color:#fff; font-size:0.85rem;">RETRO SUNSET</div>
+                  <div class="tape-sublabel" style="color:#ffe0b0;"><span>RARE</span><span>● HQ</span></div>
+                </div>
+                <div class="tape-window-panel" style="background:#1a0a00; border-color: #ff8800;">
+                  <div class="spool" style="background:#3d1e00; border-color:#ff8800;"><div class="spool-gear" style="background:#ffaa33;"></div></div>
+                  <div class="spool" style="background:#3d1e00; border-color:#ff8800;"><div class="spool-gear" style="background:#ffaa33;"></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="shop-item-info">
+              <div class="shop-item-name">Retro Sunset</div>
+              <div class="shop-item-price"><span class="coin-icon">🪙</span> 200</div>
+            </div>
+            <button class="btn-brutal magenta shop-buy-btn">BUY</button>
+            <button class="btn-brutal cyan shop-equip-btn" style="display:none;">EQUIP</button>
+            <div class="shop-owned-stamp">OWNED ✓</div>
+          </div>
+
+          <!-- Glitch Core -->
+          <div class="shop-item-card" data-item-id="tape-glitch-core" data-price="175" data-category="tape-skins">
+            <div class="shop-item-preview">
+              <div class="vhs-tape shop-tape-preview" style="background-color:#0d0d1a; border-color:#00f0ff; box-shadow:4px 4px 0px #00f0ff;">
+                <div class="tape-tag" style="background:#00f0ff; color:#000;">GLITCH CORE</div>
+                <div class="tape-label" style="background: linear-gradient(135deg, #001a22, #002233); border-color: #00f0ff;">
+                  <div class="tape-title" style="color:#00f0ff; font-size:0.85rem;">GL1TCH_C0RE</div>
+                  <div class="tape-sublabel" style="color:#00aabb;"><span>ERR0R</span><span>● 404</span></div>
+                </div>
+                <div class="tape-window-panel" style="background:#000a0d; border-color: #00f0ff;">
+                  <div class="spool" style="background:#001a22; border-color:#00f0ff;"><div class="spool-gear" style="background:#00f0ff;"></div></div>
+                  <div class="spool" style="background:#001a22; border-color:#00f0ff;"><div class="spool-gear" style="background:#00f0ff;"></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="shop-item-info">
+              <div class="shop-item-name">Glitch Core</div>
+              <div class="shop-item-price"><span class="coin-icon">🪙</span> 175</div>
+            </div>
+            <button class="btn-brutal magenta shop-buy-btn">BUY</button>
+            <button class="btn-brutal cyan shop-equip-btn" style="display:none;">EQUIP</button>
+            <div class="shop-owned-stamp">OWNED ✓</div>
+          </div>
+
+          <!-- Pastel Wave -->
+          <div class="shop-item-card" data-item-id="tape-pastel-wave" data-price="125" data-category="tape-skins">
+            <div class="shop-item-preview">
+              <div class="vhs-tape shop-tape-preview" style="background-color:#2a1e3a; border-color:#cc88ff; box-shadow:4px 4px 0px #cc88ff;">
+                <div class="tape-tag" style="background:#cc88ff; color:#1a0033;">PASTEL WAVE</div>
+                <div class="tape-label" style="background: linear-gradient(135deg, #eeddff, #ffddee); border-color: #aa66dd;">
+                  <div class="tape-title" style="color:#6633aa; font-size:0.85rem;">PASTEL WAVE</div>
+                  <div class="tape-sublabel" style="color:#9966cc;"><span>DREAMY</span><span>● LP</span></div>
+                </div>
+                <div class="tape-window-panel" style="background:#1a0d2a; border-color: #cc88ff;">
+                  <div class="spool" style="background:#331155; border-color:#cc88ff;"><div class="spool-gear" style="background:#cc88ff;"></div></div>
+                  <div class="spool" style="background:#331155; border-color:#cc88ff;"><div class="spool-gear" style="background:#cc88ff;"></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="shop-item-info">
+              <div class="shop-item-name">Pastel Wave</div>
+              <div class="shop-item-price"><span class="coin-icon">🪙</span> 125</div>
+            </div>
+            <button class="btn-brutal magenta shop-buy-btn">BUY</button>
+            <button class="btn-brutal cyan shop-equip-btn" style="display:none;">EQUIP</button>
+            <div class="shop-owned-stamp">OWNED ✓</div>
+          </div>
+
+          <!-- Toxic Waste -->
+          <div class="shop-item-card" data-item-id="tape-toxic-waste" data-price="100" data-category="tape-skins">
+            <div class="shop-item-preview">
+              <div class="vhs-tape shop-tape-preview" style="background-color:#0a1a0a; border-color:#00ff66; box-shadow:4px 4px 0px #00ff66;">
+                <div class="tape-tag" style="background:#00ff66; color:#000;">TOXIC WASTE</div>
+                <div class="tape-label" style="background: linear-gradient(135deg, #001a00, #003300); border-color: #00ff66;">
+                  <div class="tape-title" style="color:#00ff66; font-size:0.85rem;">TOX1C_WASTE</div>
+                  <div class="tape-sublabel" style="color:#00aa44;"><span>☢ HAZARD</span><span>● EP</span></div>
+                </div>
+                <div class="tape-window-panel" style="background:#001100; border-color: #00ff66;">
+                  <div class="spool" style="background:#002200; border-color:#00ff66;"><div class="spool-gear" style="background:#00ff66;"></div></div>
+                  <div class="spool" style="background:#002200; border-color:#00ff66;"><div class="spool-gear" style="background:#00ff66;"></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="shop-item-info">
+              <div class="shop-item-name">Toxic Waste</div>
+              <div class="shop-item-price"><span class="coin-icon">🪙</span> 100</div>
+            </div>
+            <button class="btn-brutal magenta shop-buy-btn">BUY</button>
+            <button class="btn-brutal cyan shop-equip-btn" style="display:none;">EQUIP</button>
+            <div class="shop-owned-stamp">OWNED ✓</div>
+          </div>
+
+          <!-- Gold Standard -->
+          <div class="shop-item-card" data-item-id="tape-gold-standard" data-price="200" data-category="tape-skins">
+            <div class="shop-item-preview">
+              <div class="vhs-tape shop-tape-preview" style="background-color:#1a1500; border-color:#ffd700; box-shadow:4px 4px 0px #ffd700;">
+                <div class="tape-tag" style="background:#ffd700; color:#000;">GOLD STANDARD</div>
+                <div class="tape-label" style="background: linear-gradient(135deg, #ffd700, #ffaa00); border-color: #000;">
+                  <div class="tape-title" style="color:#1a1000; font-size:0.85rem;">GOLD STANDARD</div>
+                  <div class="tape-sublabel" style="color:#8a7000;"><span>★ PREMIUM</span><span>● HI-FI</span></div>
+                </div>
+                <div class="tape-window-panel" style="background:#0d0a00; border-color: #ffd700;">
+                  <div class="spool" style="background:#332b00; border-color:#ffd700;"><div class="spool-gear" style="background:#ffd700;"></div></div>
+                  <div class="spool" style="background:#332b00; border-color:#ffd700;"><div class="spool-gear" style="background:#ffd700;"></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="shop-item-info">
+              <div class="shop-item-name">Gold Standard</div>
+              <div class="shop-item-price"><span class="coin-icon">🪙</span> 200</div>
+            </div>
+            <button class="btn-brutal magenta shop-buy-btn">BUY</button>
+            <button class="btn-brutal cyan shop-equip-btn" style="display:none;">EQUIP</button>
+            <div class="shop-owned-stamp">OWNED ✓</div>
+          </div>
+
+        </div>
+
+        <!-- ── VCR PLAYER SKINS GRID ────────────────────────── -->
+        <div id="grid-vcr-skins" class="shop-grid">
+
+          <!-- Midnight Chrome -->
+          <div class="shop-item-card" data-item-id="vcr-midnight-chrome" data-price="250" data-category="vcr-skins">
+            <div class="shop-item-preview">
+              <div class="vhs-player shop-vcr-preview ready" style="background-image: linear-gradient(180deg, #1a1a2e 0%, #0a0a16 100%); border-color:#8888ff; box-shadow:4px 4px 0px #8888ff;">
+                <div class="player-tag" style="background:#8888ff; color:#000;">MIDNIGHT</div>
+                <div class="player-display" style="border-color:#8888ff;">
+                  <div class="player-display-text" style="color:#8888ff; text-shadow: 0 0 4px #8888ff;">MIDNIGHT CHROME</div>
+                  <div class="player-display-status" style="color:#6666cc;">
+                    <span>CH. ∞</span>
+                    <span>● PREMIUM</span>
+                  </div>
+                </div>
+                <div class="player-vcr-slot" style="border-color:#4444aa;">
+                  <div class="player-vcr-door-flap" style="background: linear-gradient(180deg, #1a1a2e 0%, #0d0d18 100%); border-color:#4444aa;"></div>
+                </div>
+                <div class="player-controls">
+                  <div class="player-led active" style="background-color:#8888ff; box-shadow: 0 0 6px #8888ff;"></div>
+                  <div class="vcr-btns"><div class="vcr-btn" style="background:#4444aa;"></div><div class="vcr-btn" style="background:#4444aa;"></div><div class="vcr-btn" style="background:#4444aa;"></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="shop-item-info">
+              <div class="shop-item-name">Midnight Chrome</div>
+              <div class="shop-item-price"><span class="coin-icon">🪙</span> 250</div>
+            </div>
+            <button class="btn-brutal magenta shop-buy-btn">BUY</button>
+            <button class="btn-brutal cyan shop-equip-btn" style="display:none;">EQUIP</button>
+            <div class="shop-owned-stamp">OWNED ✓</div>
+          </div>
+
+          <!-- Arctic Frost -->
+          <div class="shop-item-card" data-item-id="vcr-arctic-frost" data-price="200" data-category="vcr-skins">
+            <div class="shop-item-preview">
+              <div class="vhs-player shop-vcr-preview ready" style="background-image: linear-gradient(180deg, #c8d8e8 0%, #8899aa 100%); border-color:#ddeeff; box-shadow:4px 4px 0px #aabbcc;">
+                <div class="player-tag" style="background:#ddeeff; color:#223344;">ARCTIC</div>
+                <div class="player-display" style="border-color:#aabbcc; background:#1a2a3a;">
+                  <div class="player-display-text" style="color:#88ddff; text-shadow: 0 0 4px #88ddff;">ARCTIC FROST</div>
+                  <div class="player-display-status" style="color:#66bbdd;">
+                    <span>CH. ❄</span>
+                    <span>● COOL</span>
+                  </div>
+                </div>
+                <div class="player-vcr-slot" style="border-color:#8899aa;">
+                  <div class="player-vcr-door-flap" style="background: linear-gradient(180deg, #aabbcc 0%, #8899aa 100%); border-color:#667788;"></div>
+                </div>
+                <div class="player-controls">
+                  <div class="player-led active" style="background-color:#88ddff; box-shadow: 0 0 6px #88ddff;"></div>
+                  <div class="vcr-btns"><div class="vcr-btn" style="background:#667788;"></div><div class="vcr-btn" style="background:#667788;"></div><div class="vcr-btn" style="background:#667788;"></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="shop-item-info">
+              <div class="shop-item-name">Arctic Frost</div>
+              <div class="shop-item-price"><span class="coin-icon">🪙</span> 200</div>
+            </div>
+            <button class="btn-brutal magenta shop-buy-btn">BUY</button>
+            <button class="btn-brutal cyan shop-equip-btn" style="display:none;">EQUIP</button>
+            <div class="shop-owned-stamp">OWNED ✓</div>
+          </div>
+
+          <!-- Magma Deck -->
+          <div class="shop-item-card" data-item-id="vcr-magma-deck" data-price="300" data-category="vcr-skins">
+            <div class="shop-item-preview">
+              <div class="vhs-player shop-vcr-preview ready" style="background-image: linear-gradient(180deg, #3a1010 0%, #1a0505 100%); border-color:#ff3300; box-shadow:4px 4px 0px #ff3300;">
+                <div class="player-tag" style="background:#ff3300; color:#fff;">MAGMA</div>
+                <div class="player-display" style="border-color:#ff3300; background:#1a0505;">
+                  <div class="player-display-text" style="color:#ff6633; text-shadow: 0 0 4px #ff3300;">MAGMA DECK</div>
+                  <div class="player-display-status" style="color:#ff4411;">
+                    <span>CH. 🔥</span>
+                    <span>● HOT</span>
+                  </div>
+                </div>
+                <div class="player-vcr-slot" style="border-color:#661100;">
+                  <div class="player-vcr-door-flap" style="background: linear-gradient(180deg, #2a0808 0%, #1a0404 100%); border-color:#661100;"></div>
+                </div>
+                <div class="player-controls">
+                  <div class="player-led active" style="background-color:#ff3300; box-shadow: 0 0 6px #ff3300;"></div>
+                  <div class="vcr-btns"><div class="vcr-btn" style="background:#661100;"></div><div class="vcr-btn" style="background:#661100;"></div><div class="vcr-btn" style="background:#661100;"></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="shop-item-info">
+              <div class="shop-item-name">Magma Deck</div>
+              <div class="shop-item-price"><span class="coin-icon">🪙</span> 300</div>
+            </div>
+            <button class="btn-brutal magenta shop-buy-btn">BUY</button>
+            <button class="btn-brutal cyan shop-equip-btn" style="display:none;">EQUIP</button>
+            <div class="shop-owned-stamp">OWNED ✓</div>
+          </div>
+
+          <!-- Cyber Punk -->
+          <div class="shop-item-card" data-item-id="vcr-cyber-punk" data-price="275" data-category="vcr-skins">
+            <div class="shop-item-preview">
+              <div class="vhs-player shop-vcr-preview ready" style="background-image: linear-gradient(180deg, #1a0028 0%, #0d0016 100%); border-color:#ff00ff; box-shadow:4px 4px 0px #ff00ff;">
+                <div class="player-tag" style="background:linear-gradient(90deg, #ff00ff, #00f0ff); color:#000;">CYBER</div>
+                <div class="player-display" style="border-color:#ff00ff; background:#0d0016;">
+                  <div class="player-display-text" style="color:#ff00ff; text-shadow: 0 0 4px #ff00ff;">CYBER PUNK</div>
+                  <div class="player-display-status" style="color:#cc00cc;">
+                    <span>CH. ⚡</span>
+                    <span>● WIRED</span>
+                  </div>
+                </div>
+                <div class="player-vcr-slot" style="border-color:#660066;">
+                  <div class="player-vcr-door-flap" style="background: linear-gradient(180deg, #1a0028 0%, #0d0016 100%); border-color:#660066;"></div>
+                </div>
+                <div class="player-controls">
+                  <div class="player-led active" style="background-color:#ff00ff; box-shadow: 0 0 6px #ff00ff;"></div>
+                  <div class="vcr-btns"><div class="vcr-btn" style="background:#660066;"></div><div class="vcr-btn" style="background:#660066;"></div><div class="vcr-btn" style="background:#660066;"></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="shop-item-info">
+              <div class="shop-item-name">Cyber Punk</div>
+              <div class="shop-item-price"><span class="coin-icon">🪙</span> 275</div>
+            </div>
+            <button class="btn-brutal magenta shop-buy-btn">BUY</button>
+            <button class="btn-brutal cyan shop-equip-btn" style="display:none;">EQUIP</button>
+            <div class="shop-owned-stamp">OWNED ✓</div>
+          </div>
+
+          <!-- Military OPS -->
+          <div class="shop-item-card" data-item-id="vcr-military-ops" data-price="150" data-category="vcr-skins">
+            <div class="shop-item-preview">
+              <div class="vhs-player shop-vcr-preview ready" style="background-image: linear-gradient(180deg, #2a2a1a 0%, #1a1a0d 100%); border-color:#8a8a4a; box-shadow:4px 4px 0px #8a8a4a;">
+                <div class="player-tag" style="background:#8a8a4a; color:#000;">MIL-OPS</div>
+                <div class="player-display" style="border-color:#6a6a3a; background:#0d0d08;">
+                  <div class="player-display-text" style="color:#aaaa66; text-shadow: 0 0 4px #8a8a4a;">MILITARY OPS</div>
+                  <div class="player-display-status" style="color:#888844;">
+                    <span>CH. ★</span>
+                    <span>● TACTICAL</span>
+                  </div>
+                </div>
+                <div class="player-vcr-slot" style="border-color:#4a4a2a;">
+                  <div class="player-vcr-door-flap" style="background: linear-gradient(180deg, #22220e 0%, #16160a 100%); border-color:#4a4a2a;"></div>
+                </div>
+                <div class="player-controls">
+                  <div class="player-led active" style="background-color:#aaaa66; box-shadow: 0 0 6px #aaaa66;"></div>
+                  <div class="vcr-btns"><div class="vcr-btn" style="background:#4a4a2a;"></div><div class="vcr-btn" style="background:#4a4a2a;"></div><div class="vcr-btn" style="background:#4a4a2a;"></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="shop-item-info">
+              <div class="shop-item-name">Military OPS</div>
+              <div class="shop-item-price"><span class="coin-icon">🪙</span> 150</div>
+            </div>
+            <button class="btn-brutal magenta shop-buy-btn">BUY</button>
+            <button class="btn-brutal cyan shop-equip-btn" style="display:none;">EQUIP</button>
+            <div class="shop-owned-stamp">OWNED ✓</div>
+          </div>
+
+          <!-- Vaporwave -->
+          <div class="shop-item-card" data-item-id="vcr-vaporwave" data-price="225" data-category="vcr-skins">
+            <div class="shop-item-preview">
+              <div class="vhs-player shop-vcr-preview ready" style="background-image: linear-gradient(180deg, #2a1838 0%, #14081e 100%); border-color:#ee77ff; box-shadow:4px 4px 0px #ee77ff;">
+                <div class="player-tag" style="background:linear-gradient(90deg, #ee77ff, #77eeff); color:#000;">VAPOR</div>
+                <div class="player-display" style="border-color:#cc55dd; background:#14081e;">
+                  <div class="player-display-text" style="color:#ee77ff; text-shadow: 0 0 4px #ee77ff;">V A P O R W A V E</div>
+                  <div class="player-display-status" style="color:#cc55dd;">
+                    <span>CH. 夢</span>
+                    <span>● AESTHETIC</span>
+                  </div>
+                </div>
+                <div class="player-vcr-slot" style="border-color:#882299;">
+                  <div class="player-vcr-door-flap" style="background: linear-gradient(180deg, #1e0e2a 0%, #140820 100%); border-color:#882299;"></div>
+                </div>
+                <div class="player-controls">
+                  <div class="player-led active" style="background-color:#ee77ff; box-shadow: 0 0 6px #ee77ff;"></div>
+                  <div class="vcr-btns"><div class="vcr-btn" style="background:#882299;"></div><div class="vcr-btn" style="background:#882299;"></div><div class="vcr-btn" style="background:#882299;"></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="shop-item-info">
+              <div class="shop-item-name">Vaporwave</div>
+              <div class="shop-item-price"><span class="coin-icon">🪙</span> 225</div>
+            </div>
+            <button class="btn-brutal magenta shop-buy-btn">BUY</button>
+            <button class="btn-brutal cyan shop-equip-btn" style="display:none;">EQUIP</button>
+            <div class="shop-owned-stamp">OWNED ✓</div>
+          </div>
+
+        </div>
+
+        <!-- ── TAPE LABELS GRID ─────────────────────────────── -->
+        <div id="grid-tape-labels" class="shop-grid">
+
+          <!-- Classified -->
+          <div class="shop-item-card" data-item-id="label-classified" data-price="75" data-category="tape-labels">
+            <div class="shop-item-preview label-preview-wrap">
+              <div class="label-preview-card">
+                <div class="label-preview-sticker" style="background:#ff3333; color:#fff; border-color:#aa0000;">
+                  <div class="label-stamp-text">⛔ CLASSIFIED</div>
+                  <div class="label-stamp-sub">SECURITY CLEARANCE REQUIRED</div>
+                </div>
+              </div>
+            </div>
+            <div class="shop-item-info">
+              <div class="shop-item-name">Classified</div>
+              <div class="shop-item-price"><span class="coin-icon">🪙</span> 75</div>
+            </div>
+            <button class="btn-brutal magenta shop-buy-btn">BUY</button>
+            <button class="btn-brutal cyan shop-equip-btn" style="display:none;">EQUIP</button>
+            <div class="shop-owned-stamp">OWNED ✓</div>
+          </div>
+
+          <!-- Top Secret -->
+          <div class="shop-item-card" data-item-id="label-top-secret" data-price="100" data-category="tape-labels">
+            <div class="shop-item-preview label-preview-wrap">
+              <div class="label-preview-card">
+                <div class="label-preview-sticker" style="background:#000; color:#ff0000; border-color:#ff0000;">
+                  <div class="label-stamp-text">🔒 TOP SECRET</div>
+                  <div class="label-stamp-sub">EYES ONLY — DO NOT DUPLICATE</div>
+                </div>
+              </div>
+            </div>
+            <div class="shop-item-info">
+              <div class="shop-item-name">Top Secret</div>
+              <div class="shop-item-price"><span class="coin-icon">🪙</span> 100</div>
+            </div>
+            <button class="btn-brutal magenta shop-buy-btn">BUY</button>
+            <button class="btn-brutal cyan shop-equip-btn" style="display:none;">EQUIP</button>
+            <div class="shop-owned-stamp">OWNED ✓</div>
+          </div>
+
+          <!-- Home Video -->
+          <div class="shop-item-card" data-item-id="label-home-video" data-price="50" data-category="tape-labels">
+            <div class="shop-item-preview label-preview-wrap">
+              <div class="label-preview-card">
+                <div class="label-preview-sticker" style="background:#fff8e0; color:#5a4a00; border-color:#ccaa00;">
+                  <div class="label-stamp-text">🏠 HOME VIDEO</div>
+                  <div class="label-stamp-sub">FAMILY MEMORIES — DO NOT ERASE</div>
+                </div>
+              </div>
+            </div>
+            <div class="shop-item-info">
+              <div class="shop-item-name">Home Video</div>
+              <div class="shop-item-price"><span class="coin-icon">🪙</span> 50</div>
+            </div>
+            <button class="btn-brutal magenta shop-buy-btn">BUY</button>
+            <button class="btn-brutal cyan shop-equip-btn" style="display:none;">EQUIP</button>
+            <div class="shop-owned-stamp">OWNED ✓</div>
+          </div>
+
+          <!-- Director's Cut -->
+          <div class="shop-item-card" data-item-id="label-directors-cut" data-price="100" data-category="tape-labels">
+            <div class="shop-item-preview label-preview-wrap">
+              <div class="label-preview-card">
+                <div class="label-preview-sticker" style="background:linear-gradient(135deg, #ffd700, #ff8800); color:#000; border-color:#cc7700;">
+                  <div class="label-stamp-text">🎬 DIRECTOR'S CUT</div>
+                  <div class="label-stamp-sub">UNRATED — EXTENDED EDITION</div>
+                </div>
+              </div>
+            </div>
+            <div class="shop-item-info">
+              <div class="shop-item-name">Director's Cut</div>
+              <div class="shop-item-price"><span class="coin-icon">🪙</span> 100</div>
+            </div>
+            <button class="btn-brutal magenta shop-buy-btn">BUY</button>
+            <button class="btn-brutal cyan shop-equip-btn" style="display:none;">EQUIP</button>
+            <div class="shop-owned-stamp">OWNED ✓</div>
+          </div>
+
+          <!-- Evidence -->
+          <div class="shop-item-card" data-item-id="label-evidence" data-price="75" data-category="tape-labels">
+            <div class="shop-item-preview label-preview-wrap">
+              <div class="label-preview-card">
+                <div class="label-preview-sticker" style="background:#1a1a2e; color:#00f0ff; border-color:#00f0ff;">
+                  <div class="label-stamp-text">🔍 EVIDENCE</div>
+                  <div class="label-stamp-sub">CASE FILE #VHS-0042</div>
+                </div>
+              </div>
+            </div>
+            <div class="shop-item-info">
+              <div class="shop-item-name">Evidence</div>
+              <div class="shop-item-price"><span class="coin-icon">🪙</span> 75</div>
+            </div>
+            <button class="btn-brutal magenta shop-buy-btn">BUY</button>
+            <button class="btn-brutal cyan shop-equip-btn" style="display:none;">EQUIP</button>
+            <div class="shop-owned-stamp">OWNED ✓</div>
+          </div>
+
+          <!-- Bootleg -->
+          <div class="shop-item-card" data-item-id="label-bootleg" data-price="50" data-category="tape-labels">
+            <div class="shop-item-preview label-preview-wrap">
+              <div class="label-preview-card">
+                <div class="label-preview-sticker" style="background:#222; color:#00ff66; border-color:#00ff66;">
+                  <div class="label-stamp-text">💀 BOOTLEG</div>
+                  <div class="label-stamp-sub">UNOFFICIAL COPY — NOT FOR RESALE</div>
+                </div>
+              </div>
+            </div>
+            <div class="shop-item-info">
+              <div class="shop-item-name">Bootleg</div>
+              <div class="shop-item-price"><span class="coin-icon">🪙</span> 50</div>
+            </div>
+            <button class="btn-brutal magenta shop-buy-btn">BUY</button>
+            <button class="btn-brutal cyan shop-equip-btn" style="display:none;">EQUIP</button>
+            <div class="shop-owned-stamp">OWNED ✓</div>
+          </div>
+
+        </div>
+
+      </section>
+        </div>
+      </div>
+
+      <!-- ── Footer ─────────────────────────────────────────── -->
+      <footer>
+        <p>📼 TAPE SUSPECT — PROTOTYPE v0.2 — © 2026 VHS CREW</p>
+      </footer>
+
+    </div><!-- end .home-scroll-area -->
+
+  </div><!-- end #crt-viewport -->
+
+  <!-- ── Profile / Avatar Customization Popup Modal ──────────────── -->
+  <div id="avatar-setup-modal" class="modal-overlay">
+    <div class="modal-card">
+      <button class="modal-close-btn" id="modal-close">&times;</button>
+      
+      <h2 class="brutal-title modal-title">📼 PLAYER IDENTITY</h2>
+      <p class="modal-subtitle">CHOOSE A CHARACTER AND A NICKNAME</p>
+      
+      <div class="modal-content-grid">
+        <!-- Left: Avatar Customizer -->
+        <div class="avatar-creator-box">
+          <div class="avatar-preview-container">
+            <!-- Dynamic SVG will be injected here -->
+            <div id="avatar-svg-wrapper"></div>
+            <!-- Randomize Button -->
+            <button id="btn-randomize-avatar" class="btn-circular" title="Randomize Character">
+              <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            </button>
+          </div>
+          <div class="avatar-helper-text">CLICK TO RANDOMIZE DESIGN</div>
+        </div>
+        
+        <!-- Right: Nickname & Auth Fields -->
+        <div class="profile-input-box">
+          <!-- Guest Mode Details -->
+          <div id="guest-fields" class="profile-fields-section">
+            <label for="nickname-input" class="brutal-label">NICKNAME:</label>
+            <input type="text" id="nickname-input" class="brutal-input font-handwritten" placeholder="CoolNickname2774" maxlength="12">
+          </div>
+          
+          <!-- Sign-up Mode Details (Hidden unless SIGN UP clicked) -->
+          <div id="signup-fields" class="profile-fields-section" style="display: none;">
+            <label for="signup-username" class="brutal-label">USERNAME:</label>
+            <input type="text" id="signup-username" class="brutal-input" placeholder="Enter username..." maxlength="12">
+            
+            <label for="signup-password" class="brutal-label" style="margin-top: 10px;">PASSWORD:</label>
+            <input type="password" id="signup-password" class="brutal-input" placeholder="••••••••">
+          </div>
+
+          <!-- Equipped Cosmetics Indicator -->
+          <div class="equipped-cosmetics-pills">
+            <div class="equipped-pill tape-skin-equipped">
+              <span>📼 Tape Skin:</span> <span id="equipped-tape-skin-name">Default</span>
+            </div>
+            <div class="equipped-pill vcr-skin-equipped">
+              <span>📟 VCR Skin:</span> <span id="equipped-vcr-skin-name">Default</span>
+            </div>
+            <div class="equipped-pill label-equipped">
+              <span>🏷️ Sticker:</span> <span id="equipped-label-name">None</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button id="btn-save-profile" class="btn-brutal green large-brutal-btn">
+          <span>START PLAYING ⏵</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="home.js"></script>
+</body>
+</html>

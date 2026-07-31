@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>📼 Tape Suspect — Retro OSD/VHS Theme</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ── Main CRT Viewport Monitor ──────────────────────────── -->
+  <div id="crt-viewport" class="crt-viewport crt-active">
+
+    <!-- ── App Header ─────────────────────────────────────────── -->
+    <header>
+      <div class="logo-container">
+        <img src="logo.png" alt="Tape Suspect Logo" class="site-logo">
+        <h1 class="brutal-title" style="font-size: 2.2rem;">TAPE SUSPECT</h1>
+        <span class="osd-text" style="color: var(--neon-magenta); font-weight: bold; margin-left: 10px;">PROTOTYPE</span>
+      </div>
+      
+      <div class="header-controls">
+
+        <!-- CRT Filter Toggle button -->
+        <button id="crt-toggle" class="btn-brutal yellow">VHS EFFECT: ON</button>
+      </div>
+    </header>
+    
+    <!-- Camcorder HUD Overlays (Visible across the screens) -->
+    <div class="camcorder-hud">
+      <!-- Top HUD row -->
+      <div class="hud-row">
+        <div class="rec-indicator osd-text">
+          <span id="rec-dot" class="rec-dot active"></span>
+          <span>REC</span>
+        </div>
+      </div>
+      
+      <!-- Viewfinder crop corner guides -->
+      <div class="hud-bracket-tl"></div>
+      <div class="hud-bracket-tr"></div>
+      <div class="hud-bracket-bl"></div>
+      <div class="hud-bracket-br"></div>
+      
+
+    </div>
+
+    <!-- ── Static white noise & tracking drifts ─────────────── -->
+    <div class="static-noise"></div>
+    <div class="tracking-line"></div>
+
+    <!-- ── SCREEN 1: Lobby setup View ───────────────────────── -->
+    <div id="view-lobby" class="view-panel active-view">
+      <div class="lobby-layout">
+        <!-- Players Grid -->
+        <div>
+          <h2 class="brutal-title" style="font-size: 1.8rem; margin-bottom: 20px;">📼 Connected VCRs (Players)</h2>
+          <div id="tapes-grid" class="tapes-grid">
+            
+            <!-- User VCR Player -->
+            <div id="user-tape" class="vhs-player ready" style="border-color: var(--neon-cyan); box-shadow: 4px 4px 0px var(--neon-cyan);">
+              <div class="player-avatar-circle" id="user-avatar-display"></div>
+              <span class="player-host-tag">LOBBY HOST</span>
+              <div class="player-tag" style="background-color: var(--neon-yellow); color: #000;">PLAYER-1</div>
+              <div class="player-display">
+                <div id="user-tape-title" class="player-display-text">Alex (You)</div>
+                <div class="player-display-status">
+                  <span>CH. 1</span>
+                  <span>● HOST READY</span>
+                </div>
+              </div>
+              <div class="player-vcr-slot">
+                <div class="player-vcr-door-flap"></div>
+              </div>
+              <div class="player-controls">
+                <div class="player-led active"></div>
+                <div class="vcr-btns">
+                  <div class="vcr-btn"></div>
+                  <div class="vcr-btn"></div>
+                  <div class="vcr-btn"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Preloaded Dummy VCR Player -->
+            <div class="vhs-player ready">
+              <div class="player-avatar-circle" id="dummy-avatar-1"></div>
+              <div class="player-tag" style="background-color: var(--neon-magenta);">SPECTATOR-A</div>
+              <div class="player-display">
+                <div class="player-display-text">VCR_Glitch</div>
+                <div class="player-display-status">
+                  <span>CH. 2</span>
+                  <span>● READY</span>
+                </div>
+              </div>
+              <div class="player-vcr-slot">
+                <div class="player-vcr-door-flap"></div>
+              </div>
+              <div class="player-controls">
+                <div class="player-led active"></div>
+                <div class="vcr-btns">
+                  <div class="vcr-btn"></div>
+                  <div class="vcr-btn"></div>
+                  <div class="vcr-btn"></div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          
+          <!-- Lobby Actions -->
+          <div style="margin-top: 30px; display: flex; gap: 12px; flex-wrap: wrap;">
+            <button id="add-player-btn" class="btn-brutal cyan">➕ Add VCR Player (Simulate Join)</button>
+          </div>
+        </div>
+
+        <!-- Right Side Settings menu -->
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+          <!-- Room code case -->
+          <div class="sleeve-case">
+            <h3 class="brutal-title" style="font-size: 1.2rem; color: #fff; text-shadow: none;">TAPE SLEEVE CODE</h3>
+            <div class="sleeve-label">
+              <div class="sleeve-code">SUSPECT-80S</div>
+            </div>
+            <p style="font-family: var(--font-osd); font-size: 0.8rem; color: #aaa;">Share this label code with crewmates</p>
+          </div>
+
+          <!-- Player customization -->
+          <div class="brutal-card yellow" style="padding: 16px;">
+            <h3 class="brutal-title" style="font-size: 1.1rem; color: #000; text-shadow: none;">VCR GLOW COLOR</h3>
+            <div class="color-picker-grid">
+              <div class="color-option selected" data-color="var(--neon-cyan)" style="background-color: var(--neon-cyan);"></div>
+              <div class="color-option" data-color="var(--neon-magenta)" style="background-color: var(--neon-magenta);"></div>
+              <div class="color-option" data-color="var(--neon-yellow)" style="background-color: var(--neon-yellow);"></div>
+              <div class="color-option" data-color="var(--neon-green)" style="background-color: var(--neon-green);"></div>
+              <div class="color-option" data-color="#ff7700" style="background-color: #ff7700;"></div>
+            </div>
+            
+            <div style="margin-top: 15px;">
+              <label for="username-input" style="font-family: var(--font-brutal); font-size: 0.9rem; text-transform: uppercase;">VCR LED Text Label:</label>
+              <input type="text" id="username-input" class="osd-text" value="Alex (You)" style="width: 100%; padding: 8px; border: 3px solid #000; border-radius: 6px; color:#000; font-family: var(--font-marker); font-size:1.1rem; margin-top:5px;" maxlength="12">
+            </div>
+          </div>
+
+          <!-- VHS Menu OSD settings -->
+          <div class="osd-menu">
+            <div class="osd-menu-title">--- Camcorder Config ---</div>
+            <div class="osd-menu-row">
+              <span>VIDEO SOURCE:</span>
+              <span style="color: var(--neon-yellow);">LINE-1 (YT)</span>
+            </div>
+            <div class="osd-menu-row">
+              <span>SUSPECTS:</span>
+              <span style="color: var(--neon-yellow);">1 PLAYER</span>
+            </div>
+            <div class="osd-menu-row">
+              <span>TAPE MODE:</span>
+              <span style="color: var(--neon-yellow);">SP (STANDARD)</span>
+            </div>
+            <div class="osd-menu-row">
+              <span>AUDIO OUT:</span>
+              <span style="color: var(--neon-yellow);">HI-FI DUB</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SCREEN 2: Watch Video Feed View ───────────────────── -->
+    <div id="view-watch" class="view-panel">
+      <div class="watch-container">
+        <!-- Video screen area -->
+        <div class="video-screen">
+          <div class="video-battery-overlay osd-text">
+            <span id="hud-battery">🔋 100% [|||]</span>
+          </div>
+
+          <div class="osd-overlay-play">
+            <span>⏵ PLAY</span>
+            <span style="font-size: 1rem; color: #888;">SP</span>
+          </div>
+
+          <!-- YouTube Player Container -->
+          <div id="yt-player-container">
+            <div id="yt-player"></div>
+          </div>
+
+          <!-- VCR Tape Insertion Overlay -->
+          <div id="vcr-insertion-overlay" class="vcr-insertion-overlay">
+            <div class="insertion-container">
+              <div class="vcr-gate">
+                <div class="vcr-gate-door">INSERT TAPE</div>
+              </div>
+              <div class="inserting-tape">
+                <div class="compact-tape">
+                  <div class="compact-label">📼 WATCH_TAPE</div>
+                  <div class="compact-spools">
+                    <div class="c-spool"></div>
+                    <div class="c-spool"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="insertion-status osd-text">TAPE INJECTING...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SCREEN 3: Voting View ────────────────────────────── -->
+    <div id="view-voting" class="view-panel">
+      <div class="voting-layout">
+        <!-- Left Side: Voting grid & instructions -->
+        <div>
+          <div class="voting-instructions">
+            <div>
+              <h2 class="brutal-title" style="font-size: 1.8rem;">🚨 EJECT VOTING SYSTEM</h2>
+              <p style="font-family: var(--font-osd); color: #aaa; margin-top: 4px;">Click a VCR player console to cast your suspect vote</p>
+            </div>
+          </div>
+          
+          <div class="voting-monitor-grid">
+            <!-- Monitor 1: User -->
+            <div id="voting-user-vcr" class="vhs-player monitor-screen ready" data-player="Alex (You)" style="border-color: var(--neon-cyan); box-shadow: 4px 4px 0px var(--neon-cyan);">
+              <div class="monitor-osd">CH. 1 - REC</div>
+              <div class="player-tag" style="background-color: var(--neon-yellow); color: #000;">PLAYER-1</div>
+              <div class="player-display">
+                <div id="voting-user-display-text" class="player-display-text">Alex (You)</div>
+                <div class="player-display-status">
+                  <span>CH. 1</span>
+                  <span class="vote-count-label" style="color: var(--neon-yellow);">0 VOTES</span>
+                </div>
+              </div>
+              <div class="player-vcr-slot loaded">
+                <div class="player-vcr-door-flap"></div>
+                <div class="player-vcr-inserted-tape">
+                  <div class="inserted-tape-label"></div>
+                  <div class="inserted-tape-spools">
+                    <div class="i-spool"></div>
+                    <div class="i-spool"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="player-controls">
+                <div class="player-led active"></div>
+                <div class="vcr-btns">
+                  <div class="vcr-btn"></div>
+                  <div class="vcr-btn"></div>
+                  <div class="vcr-btn"></div>
+                </div>
+              </div>
+              <div class="vote-stamp">SUSPECT</div>
+            </div>
+
+            <!-- Monitor 2: Dummy A -->
+            <div class="vhs-player monitor-screen ready" data-player="VCR_Glitch" style="border-color: var(--neon-magenta); box-shadow: 4px 4px 0px var(--neon-magenta);">
+              <div class="monitor-osd">CH. 2 - PLAY</div>
+              <div class="player-tag" style="background-color: var(--neon-magenta); color: #fff;">SPECTATOR-A</div>
+              <div class="player-display">
+                <div class="player-display-text">VCR_Glitch</div>
+                <div class="player-display-status">
+                  <span>CH. 2</span>
+                  <span style="color: var(--neon-yellow);">2 VOTES</span>
+                </div>
+              </div>
+              <div class="player-vcr-slot loaded">
+                <div class="player-vcr-door-flap"></div>
+                <div class="player-vcr-inserted-tape">
+                  <div class="inserted-tape-label"></div>
+                  <div class="inserted-tape-spools">
+                    <div class="i-spool"></div>
+                    <div class="i-spool"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="player-controls">
+                <div class="player-led active"></div>
+                <div class="vcr-btns">
+                  <div class="vcr-btn"></div>
+                  <div class="vcr-btn"></div>
+                  <div class="vcr-btn"></div>
+                </div>
+              </div>
+              <div class="vote-stamp">SUSPECT</div>
+            </div>
+
+            <!-- Monitor 3: Dummy B -->
+            <div class="vhs-player monitor-screen ready" data-player="RetroRacer99" style="border-color: #ffee00; box-shadow: 4px 4px 0px #ffee00;">
+              <div class="monitor-osd">CH. 3 - SP</div>
+              <div class="player-tag" style="background-color: #ffee00; color: #000;">PLAYBACK-A</div>
+              <div class="player-display">
+                <div class="player-display-text">RetroRacer99</div>
+                <div class="player-display-status">
+                  <span>CH. 3</span>
+                  <span style="color: var(--neon-yellow);">1 VOTE</span>
+                </div>
+              </div>
+              <div class="player-vcr-slot loaded">
+                <div class="player-vcr-door-flap"></div>
+                <div class="player-vcr-inserted-tape">
+                  <div class="inserted-tape-label"></div>
+                  <div class="inserted-tape-spools">
+                    <div class="i-spool"></div>
+                    <div class="i-spool"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="player-controls">
+                <div class="player-led active"></div>
+                <div class="vcr-btns">
+                  <div class="vcr-btn"></div>
+                  <div class="vcr-btn"></div>
+                  <div class="vcr-btn"></div>
+                </div>
+              </div>
+              <div class="vote-stamp">SUSPECT</div>
+            </div>
+
+            <!-- Monitor 4: Dummy C -->
+            <div class="vhs-player monitor-screen ready" data-player="NeonSamurai" style="border-color: var(--neon-green); box-shadow: 4px 4px 0px var(--neon-green);">
+              <div class="monitor-osd">CH. 4 - PLAY</div>
+              <div class="player-tag" style="background-color: var(--neon-green); color: #000;">CAM-SETUP</div>
+              <div class="player-display">
+                <div class="player-display-text">NeonSamurai</div>
+                <div class="player-display-status">
+                  <span>CH. 4</span>
+                  <span style="color: var(--neon-yellow);">0 VOTES</span>
+                </div>
+              </div>
+              <div class="player-vcr-slot loaded">
+                <div class="player-vcr-door-flap"></div>
+                <div class="player-vcr-inserted-tape">
+                  <div class="inserted-tape-label"></div>
+                  <div class="inserted-tape-spools">
+                    <div class="i-spool"></div>
+                    <div class="i-spool"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="player-controls">
+                <div class="player-led active"></div>
+                <div class="vcr-btns">
+                  <div class="vcr-btn"></div>
+                  <div class="vcr-btn"></div>
+                  <div class="vcr-btn"></div>
+                </div>
+              </div>
+              <div class="vote-stamp">SUSPECT</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Side: Timer + Chat Console -->
+        <div class="voting-right-column">
+          <!-- Timer (above the chat box) -->
+          <div class="osd-text voting-timer-block">
+            TIMER: <span id="voting-timer-val" style="color: var(--neon-magenta);">90</span>s
+          </div>
+
+          <div class="voting-chat-box">
+            <div class="voting-chat-header">
+              <span>💬 COMMUNICATE TERMINAL</span>
+            </div>
+
+            <!-- Pinned Words Strip -->
+            <div class="pinned-words-strip" id="pinned-words-strip">
+              <div class="pinned-words-label">📌 PINNED — VIDEO WORDS</div>
+              <div class="pinned-words-chips" id="pinned-words-chips">
+                <!-- word chips injected here -->
+              </div>
+            </div>
+
+            <!-- Word Phase Banner (shown during word-submission phase) -->
+            <div id="word-phase-banner" class="word-phase-banner">
+              ⏳ WORD PHASE: Submit 1 word about the video before chat opens
+            </div>
+
+            <div id="voting-chat-log" class="voting-chat-log">
+              <!-- messages appear here -->
+            </div>
+            <div class="voting-chat-input-row">
+              <input type="text" id="voting-chat-input" class="voting-chat-input" placeholder="Your 1 word about the video..." maxlength="20">
+              <button id="voting-chat-send" class="btn-brutal cyan" style="padding: 8px 16px; margin: 0; font-size: 0.9rem; height: auto;">SEND</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SCREEN 4: Results View ───────────────────────────── -->
+    <div id="view-results" class="view-panel">
+      <div class="results-container">
+        
+        <div>
+          <h2 class="brutal-title results-banner" style="color: var(--neon-green);">TAPE EJECTED</h2>
+          <p class="osd-text" style="color: #aaa;">The votes have been tally counted. The VCR player is ejecting the tape...</p>
+        </div>
+
+        <!-- Simulated VCR slot with animated cassette ejection -->
+        <div class="vcr-deck ejected">
+          <div class="vcr-slot">
+            <div class="vcr-door">EJECTING TAPE</div>
+            
+            <!-- Tape sliding out -->
+            <div class="ejected-tape">
+              <div class="vhs-tape imposter-selected" style="transform: scale(0.65); pointer-events: none; margin-top: -30px;">
+                <div class="tape-tag" style="background-color: var(--neon-magenta); color: #fff;">SUSPECT-X</div>
+                <div class="tape-label">
+                  <div class="tape-title" style="font-size: 1.1rem; color: var(--neon-magenta);">VCR_Glitch</div>
+                  <div class="tape-sublabel">
+                    <span>SUSPECT</span>
+                    <span>● EJECT</span>
+                  </div>
+                </div>
+                <div class="tape-window-panel">
+                  <div class="spool"><div class="spool-gear"></div></div>
+                  <div class="spool"><div class="spool-gear"></div></div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Outcome details -->
+        <div class="brutal-card yellow" style="width: 100%; color: #000;">
+          <h3 class="brutal-title" style="font-size: 1.5rem; color:#000; text-shadow:none; margin-bottom:10px;">CREW VICTORY!</h3>
+          <p style="font-weight: 600;">The Suspect was successfully detected and ejected from the VCR deck.</p>
+        </div>
+
+        <!-- Comparing tape recordings -->
+        <div class="results-info-cards">
+          <!-- Crew tape metadata -->
+          <div class="brutal-card">
+            <div class="reveal-title-tag">CREW TAPE RECORDING</div>
+            <div class="reveal-value" style="color: var(--neon-cyan);">"VINTAGE CAMERAS REVIEW.VHS"</div>
+          </div>
+          <!-- Imposter tape metadata -->
+          <div class="brutal-card">
+            <div class="reveal-title-tag">SUSPECT TAPE RECORDING</div>
+            <div class="reveal-value" style="color: var(--neon-magenta);">"HOW TO ASSEMBLE A VHS SHELL.VHS"</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── VCR REMOTE CONTROL BOARD (Navigation) ──────────────── -->
+    <div class="remote-control">
+      <span class="remote-label">VCR OPERATION PANEL:</span>
+      
+      <!-- Lobby button -->
+      <button class="remote-btn remote-btn-rew active" data-target="view-lobby">
+        <span>⏮</span> LOBBY / SETUPS
+      </button>
+      
+      <!-- Watch video button -->
+      <button class="remote-btn remote-btn-play" data-target="view-watch">
+        <span>⏵</span> WATCH VIDEO
+      </button>
+      
+      <!-- Voting button -->
+      <button class="remote-btn remote-btn-ff" data-target="view-voting">
+        <span>⏩</span> CAST VOTES
+      </button>
+      
+      <!-- Results button -->
+      <button class="remote-btn remote-btn-eject" data-target="view-results">
+        <span>⏏</span> EJECT RESULTS
+      </button>
+    </div>
+
+
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

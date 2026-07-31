@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>📼 Tape Suspect — Access Console</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="home-body">
+
+  <!-- ── Main CRT Viewport Monitor ──────────────────────────── -->
+  <div id="crt-viewport" class="crt-viewport crt-active home-viewport">
+
+    <!-- ── App Header ─────────────────────────────────────────── -->
+    <header>
+      <div class="logo-container">
+        <img src="logo.png" alt="Tape Suspect Logo" class="site-logo">
+        <h1 class="brutal-title" style="font-size: 2.2rem;">TAPE SUSPECT</h1>
+        <span class="osd-text" style="color: var(--neon-cyan); font-weight: bold; margin-left: 10px;">LOBBY ROUTER</span>
+      </div>
+      
+      <div class="header-controls">
+        <!-- Player Identity Tag -->
+        <div id="header-user-tag" class="coin-balance-display" style="border-color: var(--neon-cyan); background: rgba(0,0,0,0.6);">
+          <span id="header-user-avatar" style="margin-right: 5px; font-size: 1.2rem;">🎮</span>
+          <span id="header-user-name" class="coin-amount" style="font-family: var(--font-marker); font-size: 1.1rem; color: var(--neon-cyan); text-shadow: none;">Alex</span>
+          <span class="coin-label" style="color: #aaa; margin-left: 8px;">CONNECTED VCR</span>
+        </div>
+        <!-- CRT Filter Toggle button -->
+        <button id="crt-toggle" class="btn-brutal yellow">VHS EFFECT: ON</button>
+      </div>
+    </header>
+    
+    <!-- Camcorder HUD Overlays -->
+    <div class="camcorder-hud">
+      <div class="hud-row">
+        <div class="rec-indicator osd-text">
+          <span id="rec-dot" class="rec-dot active"></span>
+          <span>REC</span>
+        </div>
+      </div>
+      <div class="hud-bracket-tl"></div>
+      <div class="hud-bracket-tr"></div>
+      <div class="hud-bracket-bl"></div>
+      <div class="hud-bracket-br"></div>
+    </div>
+
+    <!-- ── Static white noise & tracking drifts ─────────────── -->
+    <div class="static-noise"></div>
+    <div class="tracking-line"></div>
+
+    <!-- ── Scrollable Content Area ──────────────────────────── -->
+    <div class="home-scroll-area">
+
+      <section class="gartic-hero-section" style="padding: 20px 0;">
+        <div class="gartic-container-wrapper" style="max-width: 1200px; width: 95%;">
+          
+          <div class="gartic-main-box" style="padding: 24px; min-height: 78vh; display: flex; flex-direction: column;">
+            
+            <!-- Main Grid Layout -->
+            <div class="gartic-inner-grid" style="flex-grow: 1; grid-template-columns: 1.1fr 1.3fr; gap: 24px; height: 100%;">
+              
+              <!-- LEFT COLUMN: Join Public/Private -->
+              <div style="display: flex; flex-direction: column; gap: 20px; overflow-y: auto; padding-right: 8px;">
+                
+                <!-- PUBLIC LOBBIES -->
+                <div class="brutal-card cyan-border" style="flex-grow: 1; padding: 18px; background: rgba(13, 13, 26, 0.9);">
+                  <h3 class="brutal-title" style="font-size: 1.3rem; color: var(--neon-cyan); margin-bottom: 12px; text-shadow: none;">🌐 ACTIVE PUBLIC Tapes</h3>
+                  
+                  <div id="public-lobbies-list" style="display: flex; flex-direction: column; gap: 12px;">
+                    <!-- Public Lobby Item 1 -->
+                    <div class="lobby-item-card" data-code="GLITCH-80S" data-category="memes" data-chat="text">
+                      <div class="lobby-item-meta">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                          <span class="lobby-item-avatar">👾</span>
+                          <div>
+                            <span class="lobby-item-host">VCR_Glitch</span>
+                            <span class="lobby-item-code">GLITCH-80S</span>
+                          </div>
+                        </div>
+                        <div class="lobby-item-players">3/8 Players</div>
+                      </div>
+                      <div class="lobby-item-options">
+                        <span class="lobby-pill yellow">😂 MEMES</span>
+                        <span class="lobby-pill magenta">⌨️ TEXT</span>
+                      </div>
+                      <button class="btn-brutal cyan join-public-btn" data-code="GLITCH-80S">JOIN TAPE ⏵</button>
+                    </div>
+
+                    <!-- Public Lobby Item 2 -->
+                    <div class="lobby-item-card" data-code="OUTRUN-90" data-category="music" data-chat="voice">
+                      <div class="lobby-item-meta">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                          <span class="lobby-item-avatar">🦊</span>
+                          <div>
+                            <span class="lobby-item-host">RetroRacer99</span>
+                            <span class="lobby-item-code">OUTRUN-90</span>
+                          </div>
+                        </div>
+                        <div class="lobby-item-players">5/12 Players</div>
+                      </div>
+                      <div class="lobby-item-options">
+                        <span class="lobby-pill yellow">🎵 MUSIC</span>
+                        <span class="lobby-pill green">🎤 VOICE</span>
+                      </div>
+                      <button class="btn-brutal cyan join-public-btn" data-code="OUTRUN-90">JOIN TAPE ⏵</button>
+                    </div>
+
+                    <!-- Public Lobby Item 3 (Full) -->
+                    <div class="lobby-item-card full-lobby" data-code="SPORTS-ST" data-category="sports" data-chat="video">
+                      <div class="lobby-item-meta">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                          <span class="lobby-item-avatar">🦁</span>
+                          <div>
+                            <span class="lobby-item-host">NeonSamurai</span>
+                            <span class="lobby-item-code">SPORTS-ST</span>
+                          </div>
+                        </div>
+                        <div class="lobby-item-players">8/8 Players</div>
+                      </div>
+                      <div class="lobby-item-options">
+                        <span class="lobby-pill yellow">🏆 SPORTS</span>
+                        <span class="lobby-pill cyan">📷 VIDEO</span>
+                      </div>
+                      <button class="btn-brutal dark join-public-btn" disabled style="opacity: 0.5; cursor: not-allowed;">FULL 🚫</button>
+                    </div>
+                  </div>
+
+                </div>
+
+                <!-- PRIVATE LOBBY CODE -->
+                <div class="brutal-card magenta-border" style="padding: 16px; background: rgba(13, 13, 26, 0.9);">
+                  <h3 class="brutal-title" style="font-size: 1.2rem; color: var(--neon-magenta); margin-bottom: 10px; text-shadow: none;">🔑 ACCESS PRIVATE TAPE</h3>
+                  
+                  <div style="display: flex; gap: 10px;">
+                    <input type="text" id="private-code-input" class="osd-text" placeholder="SUSPECT-CODE" 
+                           style="flex-grow: 1; padding: 10px 14px; border: 3px solid #000; border-radius: 6px; color: #000; font-family: var(--font-osd); text-transform: uppercase; font-size: 1.1rem; background: #fff;" 
+                           maxlength="12">
+                    <button id="join-private-btn" class="btn-brutal magenta" style="margin: 0; padding: 0 16px;">INSERT TAPE</button>
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- RIGHT COLUMN: Host Setup Options -->
+              <div class="brutal-card yellow-border" style="padding: 20px; background: rgba(13, 13, 26, 0.9); display: flex; flex-direction: column; overflow-y: auto;">
+                <h3 class="brutal-title" style="font-size: 1.4rem; color: var(--neon-yellow); margin-bottom: 16px; text-shadow: none;">📟 FORMAT BLANK DECK (HOST LOBBY)</h3>
+                
+                <div style="display: flex; flex-direction: column; gap: 16px; flex-grow: 1;">
+                  
+                  <!-- Privacy Toggle Options -->
+                  <div>
+                    <label class="form-section-title">🔒 DECK VISIBILITY</label>
+                    <div style="display: flex; gap: 10px; margin-top: 5px;">
+                      <button id="opt-public" class="btn-brutal option-btn active flex-1" data-visibility="public">🌐 PUBLIC</button>
+                      <button id="opt-private" class="btn-brutal option-btn flex-1" data-visibility="private">🔒 PRIVATE</button>
+                    </div>
+                  </div>
+
+                  <!-- Chat Type Options -->
+                  <div>
+                    <label class="form-section-title">💬 COMMUNICATE MODE (CHAT TYPE)</label>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 5px;">
+                      <button class="btn-brutal option-btn active chat-btn" data-chat="text">
+                        <span style="font-size: 1.3rem; display: block; margin-bottom: 2px;">⌨️</span>
+                        TEXT
+                      </button>
+                      <button class="btn-brutal option-btn chat-btn" data-chat="voice">
+                        <span style="font-size: 1.3rem; display: block; margin-bottom: 2px;">🎤</span>
+                        VOICE
+                      </button>
+                      <button class="btn-brutal option-btn chat-btn" data-chat="video">
+                        <span style="font-size: 1.3rem; display: block; margin-bottom: 2px;">📷</span>
+                        VIDEO
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Video Category Options -->
+                  <div>
+                    <label class="form-section-title">🎬 VIDEO RECORDING STYLE (CATEGORY)</label>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 5px;">
+                      <button class="btn-brutal option-btn active category-btn" data-category="memes">
+                        <span style="font-size: 1.3rem; display: block; margin-bottom: 2px;">😂</span>
+                        MEMES
+                      </button>
+                      <button class="btn-brutal option-btn category-btn" data-category="sports">
+                        <span style="font-size: 1.3rem; display: block; margin-bottom: 2px;">🏆</span>
+                        SPORTS
+                      </button>
+                      <button class="btn-brutal option-btn category-btn" data-category="music">
+                        <span style="font-size: 1.3rem; display: block; margin-bottom: 2px;">🎵</span>
+                        MUSIC VIDEOS
+                      </button>
+                      <button class="btn-brutal option-btn category-btn" data-category="custom">
+                        <span style="font-size: 1.3rem; display: block; margin-bottom: 2px;">⚙️</span>
+                        CUSTOM URL
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Custom URLs Inputs Block (Shown only when category is custom) -->
+                  <div id="custom-urls-block" style="display: none; flex-direction: column; gap: 12px; margin-top: 5px; border-left: 4px solid var(--neon-yellow); padding-left: 12px;" class="animate-scale-in">
+                    <div>
+                      <label class="form-section-title" style="font-size: 0.8rem; color: #ccc;">🎬 CREWMATE VIDEO URL</label>
+                      <input type="text" id="url-crew" class="osd-text" placeholder="https://youtube.com/watch?v=..." 
+                             style="width: 100%; padding: 8px; border: 3px solid #000; border-radius: 6px; color: #000; font-family: var(--font-osd); margin-top: 4px; background: #fff;">
+                      <span id="url-crew-error" style="color: var(--neon-magenta); font-size: 0.75rem; font-family: var(--font-osd); display: none; margin-top: 2px;">INVALID YOUTUBE URL</span>
+                    </div>
+                    <div>
+                      <label class="form-section-title" style="font-size: 0.8rem; color: #ccc;">👁️ SUSPECT (IMPOSTER) VIDEO URL</label>
+                      <input type="text" id="url-imposter" class="osd-text" placeholder="https://youtube.com/watch?v=..." 
+                             style="width: 100%; padding: 8px; border: 3px solid #000; border-radius: 6px; color: #000; font-family: var(--font-osd); margin-top: 4px; background: #fff;">
+                      <span id="url-imposter-error" style="color: var(--neon-magenta); font-size: 0.75rem; font-family: var(--font-osd); display: none; margin-top: 2px;">INVALID YOUTUBE URL</span>
+                    </div>
+                  </div>
+
+                </div>
+
+                <!-- Host CTA -->
+                <button id="btn-host-submit" class="btn-brutal yellow large-brutal-btn" style="margin-top: 20px; width: 100%;">
+                  INSERT BLANK TAPE & HOST ⏵
+                </button>
+
+              </div>
+
+            </div>
+
+            <!-- Footer area in box -->
+            <div class="gartic-box-footer" style="margin-top: 20px; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center;">
+              <button id="btn-back-home" class="btn-brutal dark" style="margin: 0; padding: 6px 16px;">
+                ◀ RETURN HOME
+              </button>
+              <div class="balance-pill" style="margin: 0;">
+                <span class="coin-icon">🟢</span>
+                <span class="coin-label" style="text-shadow: none; color: #000;">SYSTEM OPERATIONAL</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Footer ─────────────────────────────────────────── -->
+      <footer style="margin-top: auto; padding: 12px 0;">
+        <p>📼 TAPE SUSPECT — PROTOTYPE v0.2 — © 2026 VHS CREW</p>
+      </footer>
+
+    </div><!-- end .home-scroll-area -->
+
+  </div><!-- end #crt-viewport -->
+
+  <script src="join-host.js"></script>
+</body>
+</html>
