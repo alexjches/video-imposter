@@ -416,7 +416,7 @@ function DashboardContent() {
                     <button
                       id="join-room-btn"
                       className="btn-brutal magenta"
-                      style={{ margin: 0, padding: '0 16px' }}
+                      style={{ margin: 0, padding: '0 16px', whiteSpace: 'nowrap' }}
                       disabled={joining || privateCode.trim().length !== 6}
                       onClick={() => joinByCode(privateCode)}
                     >
@@ -634,7 +634,9 @@ function DashboardContent() {
               </Link>
               <div className="balance-pill" style={{ margin: 0 }}>
                 <span className="coin-icon">🟢</span>
-                <span className="coin-label" style={{ textShadow: 'none', color: '#000' }}>
+                {/* join-host.html sets this label to #000, but .balance-pill's
+                    background is rgba(0,0,0,0.4) — black on black. */}
+                <span className="coin-label" style={{ color: 'var(--neon-green)' }}>
                   SYSTEM OPERATIONAL
                 </span>
               </div>

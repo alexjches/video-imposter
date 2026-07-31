@@ -48,6 +48,22 @@
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--neon-magenta); }
 
+/* The prototype centres the OWNED stamp on the card, which works there only
+   because its cards clip the name/price/buy rows. Ours show them, so centre
+   the stamp on the preview instead — it still reads as a stamp across the
+   item without covering what the item is called. */
+.shop-owned-stamp {
+  top: 34%;
+}
+
+/* Longer label names wrap to two lines ("HOME VIDEO", "DIRECTOR'S CUT"),
+   growing the sticker from 93px to 120px and pushing that card's name and
+   BUY button ~24px below its neighbours'. The wrapper's min-height lets it
+   grow; pin it so every preview box in a row is the same size. */
+.label-preview-wrap {
+  height: 140px;
+}
+
 /* Confetti particle, spawned imperatively by ResultsScreen. */
 .confetti-particle {
   position: fixed;
