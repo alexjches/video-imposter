@@ -1,18 +1,47 @@
 'use client';
-// src/app/dashboard/page.tsx
-// Main hub: public room browser + create room
+// src/app/dashboard/page.tsx — "Lobby Router"
+// Public tape browser, private-code entry and the host setup form on one
+// console. Layout mirrors vhs-frontend-example/join-host.html (spec §21).
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getSocket } from '@/lib/socket';
-import { RoomPublic, Preset } from '@/types';
-import { CreateRoomModal } from '@/components/dashboard/CreateRoomModal';
-import { JoinRoomModal } from '@/components/dashboard/JoinRoomModal';
+import { RoomPublic, ChatType } from '@/types';
+import { VIDEO_CATEGORIES } from '@/lib/videoCategories';
+import { isValidVideoUrl } from '@/lib/videoParser';
 import { useShop } from '@/hooks/useShop';
+import { CrtShell } from '@/components/vhs/CrtShell';
 import Link from 'next/link';
 
 const GUEST_AVATARS = ['🎮', '👾', '🕵️', '🎭', '🦊', '🐺', '🦁', '🐸'];
+
+// Section 20: 'none' means the lobby talks on its own Discord/FaceTime call
+// and the app shows no chat at all.
+const CHAT_MODES: { id: ChatType; icon: string; label: string }[] = [
+  { id: 'text', icon: '⌨️', label: 'TEXT' },
+  { id: 'voice', icon: '🎤', label: 'VOICE' },
+  { id: 'video', icon: '📷', label: 'VIDEO' },
+  { id: 'none', icon: '🔇', label: 'EXTERNAL' },
+];
+
+const CHAT_PILL: Record<ChatType, string> = {
+  text: 'magenta',
+  voice: 'green',
+  video: 'cyan',
+  none: 'yellow',
+};
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '8px',
+  border: '3px solid #000',
+  borderRadius: 6,
+  color: '#000',
+  background: '#fff',
+  fontFamily: 'var(--font-osd)',
+  marginTop: 4,
+};
 
 function DashboardContent() {
   const { data: session, status } = useSession();
@@ -22,12 +51,23 @@ function DashboardContent() {
   const isGuest = searchParams.get('guest') === '1';
 
   const [publicRooms, setPublicRooms] = useState<RoomPublic[]>([]);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showJoinModal, setShowJoinModal] = useState(false);
   const [guestName, setGuestName] = useState('');
   const [guestAvatar, setGuestAvatar] = useState('🎮');
   const [guestSetup, setGuestSetup] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [error, setError] = useState('');
+
+  // Host setup form
+  const [isPublic, setIsPublic] = useState(true);
+  const [chatType, setChatType] = useState<ChatType>('text');
+  const [category, setCategory] = useState<string>('memes');
+  const [crewUrl, setCrewUrl] = useState('');
+  const [imposterUrl, setImposterUrl] = useState('');
+  const [hosting, setHosting] = useState(false);
+
+  // Private code entry
+  const [privateCode, setPrivateCode] = useState('');
+  const [joining, setJoining] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -44,15 +84,17 @@ function DashboardContent() {
     }
   }, []);
 
-  const completeGuestSetup = useCallback((name: string) => {
-    const trimmed = name.trim();
-    if (trimmed.length >= 2) {
+  const completeGuestSetup = useCallback(
+    (name: string) => {
+      const trimmed = name.trim();
+      if (trimmed.length < 2) return;
       localStorage.setItem('imposter_guest_name', trimmed);
       localStorage.setItem('imposter_guest_avatar', guestAvatar);
       setGuestName(trimmed);
       setGuestSetup(true);
-    }
-  }, [guestAvatar]);
+    },
+    [guestAvatar]
+  );
 
   const playerName = session?.user?.name || (guestSetup ? guestName : null);
   const playerAvatar = (session?.user as any)?.image || guestAvatar;
@@ -62,51 +104,33 @@ function DashboardContent() {
     const socket = getSocket();
     if (!socket.connected) socket.connect();
 
-    const handleRoomsUpdated = (rooms: RoomPublic[]) => {
-      setPublicRooms(rooms);
-    };
+    const handleRoomsUpdated = (rooms: RoomPublic[]) => setPublicRooms(rooms);
 
     socket.on('rooms:updated', handleRoomsUpdated);
-    // Request initial rooms list
-    socket.emit('rooms:list', {}, (rooms: RoomPublic[]) => {
-      setPublicRooms(rooms || []);
-    });
+    socket.emit('rooms:list', {}, (rooms: RoomPublic[]) => setPublicRooms(rooms || []));
 
     return () => {
       socket.off('rooms:updated', handleRoomsUpdated);
     };
   }, []);
 
-  const handleCreateRoom = useCallback(
-    async (opts: { isPublic: boolean; normalVideoUrl: string; imposterVideoUrl: string; chatType: 'text' | 'voice' | 'video'; videoCategory: string | null }) => {
-      const socket = getSocket();
-      const name = playerName || 'Guest';
-      const avatar = playerAvatar || '🎮';
-
-      return new Promise<string>((resolve, reject) => {
-        socket.emit(
-          'room:create',
-          { playerName: name, avatar, userId, ...opts },
-          (res: { success: boolean; code?: string; error?: string }) => {
-            if (res.success && res.code) resolve(res.code);
-            else reject(new Error(res.error || 'Failed to create room'));
-          }
-        );
-      });
-    },
-    [playerName, playerAvatar, userId]
-  );
-
-  const handleJoinPublicRoom = useCallback(
+  const joinByCode = useCallback(
     (code: string) => {
-      const name = playerName || 'Guest';
-      const socket = getSocket();
-      socket.emit(
+      const trimmed = code.trim().toUpperCase();
+      if (trimmed.length !== 6) {
+        setError('TAPE CODES ARE 6 CHARACTERS');
+        return;
+      }
+      setJoining(true);
+      setError('');
+      getSocket().emit(
         'room:join',
-        { code, playerName: name, avatar: playerAvatar, userId },
+        { code: trimmed, playerName: playerName || 'Guest', avatar: playerAvatar, userId },
         (res: { success: boolean; error?: string }) => {
-          if (res.success) {
-            router.push(`/room/${code}`);
+          if (res.success) router.push(`/room/${trimmed}`);
+          else {
+            setError((res.error || 'COULD NOT JOIN TAPE').toUpperCase());
+            setJoining(false);
           }
         }
       );
@@ -114,227 +138,528 @@ function DashboardContent() {
     [playerName, playerAvatar, userId, router]
   );
 
+  const customValid =
+    category !== 'custom' ||
+    (isValidVideoUrl(crewUrl) && isValidVideoUrl(imposterUrl));
+
+  const hostRoom = useCallback(() => {
+    if (!customValid) {
+      setError('BOTH CUSTOM TAPE URLS MUST BE VALID');
+      return;
+    }
+    setHosting(true);
+    setError('');
+    getSocket().emit(
+      'room:create',
+      {
+        playerName: playerName || 'Guest',
+        avatar: playerAvatar,
+        userId,
+        isPublic,
+        chatType,
+        videoCategory: category === 'custom' ? null : category,
+        normalVideoUrl: category === 'custom' ? crewUrl : '',
+        imposterVideoUrl: category === 'custom' ? imposterUrl : '',
+      },
+      (res: { success: boolean; code?: string; error?: string }) => {
+        if (res.success && res.code) router.push(`/room/${res.code}`);
+        else {
+          setError((res.error || 'COULD NOT FORMAT DECK').toUpperCase());
+          setHosting(false);
+        }
+      }
+    );
+  }, [customValid, playerName, playerAvatar, userId, isPublic, chatType, category, crewUrl, imposterUrl, router]);
+
   // Redirect logged-out non-guests
   if (status === 'unauthenticated' && !isGuest) {
     router.push('/');
     return null;
   }
 
-  // Prevent hydration mismatches
   if (!mounted || status === 'loading') {
     return (
-      <div className="min-h-dvh flex items-center justify-center grid-bg">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-violet-500 mx-auto mb-4"></div>
-          <p className="text-zinc-400 font-medium">Loading Dashboard...</p>
+      <CrtShell home badge="LOBBY ROUTER" badgeColor="var(--neon-cyan)">
+        <div style={{ display: 'grid', placeItems: 'center', flex: 1 }}>
+          <div className="osd-text" style={{ color: 'var(--neon-cyan)' }}>
+            SPOOLING UP…
+          </div>
         </div>
-      </div>
+      </CrtShell>
     );
   }
 
-  // Guest setup screen
+  // ── Guest identity gate ──────────────────────────────────────────
   if (isGuest && !guestSetup) {
     return (
-      <div className="min-h-dvh flex items-center justify-center grid-bg px-4">
-        <div className="glass rounded-2xl p-8 w-full max-w-sm animate-scale-in">
-          <h2 className="text-2xl font-bold text-white mb-2 text-center">Quick Play</h2>
-          <p className="text-zinc-400 text-sm text-center mb-6">Enter a display name to continue as guest</p>
-          <div className="text-5xl text-center mb-4">{guestAvatar}</div>
-          <input
-            id="guest-name-input"
-            type="text"
-            value={guestName}
-            onChange={(e) => setGuestName(e.target.value)}
-            className="input-field mb-4"
-            placeholder="Your display name"
-            maxLength={20}
-            onKeyDown={(e) => e.key === 'Enter' && completeGuestSetup(guestName)}
-          />
-          <button
-            id="guest-continue-btn"
-            className="btn-primary w-full"
-            disabled={guestName.trim().length < 2}
-            onClick={() => completeGuestSetup(guestName)}
-          >
-            Continue as Guest →
-          </button>
-          <p className="text-center text-zinc-500 text-xs mt-4">
-            <Link href="/signup" className="text-violet-400 hover:underline">Create an account</Link> to save presets & history
-          </p>
+      <CrtShell home badge="LOBBY ROUTER" badgeColor="var(--neon-cyan)">
+        <div style={{ display: 'grid', placeItems: 'center', flex: 1, padding: 20 }}>
+          <div className="modal-card" style={{ maxWidth: 420 }}>
+            <h2 className="brutal-title modal-title">📼 PLAYER IDENTITY</h2>
+            <p className="modal-subtitle">LABEL YOUR CASSETTE TO CONTINUE</p>
+            <div style={{ fontSize: '3.5rem', textAlign: 'center', margin: '10px 0' }}>
+              {guestAvatar}
+            </div>
+            <label className="brutal-label" htmlFor="guest-name-input">
+              NICKNAME:
+            </label>
+            <input
+              id="guest-name-input"
+              type="text"
+              className="brutal-input"
+              value={guestName}
+              onChange={(e) => setGuestName(e.target.value)}
+              placeholder="CoolNickname2774"
+              maxLength={20}
+              onKeyDown={(e) => e.key === 'Enter' && completeGuestSetup(guestName)}
+            />
+            <div className="modal-actions">
+              <button
+                id="guest-continue-btn"
+                className="btn-brutal green large-brutal-btn"
+                disabled={guestName.trim().length < 2}
+                onClick={() => completeGuestSetup(guestName)}
+              >
+                START PLAYING ⏵
+              </button>
+            </div>
+            <p className="osd-text" style={{ textAlign: 'center', color: '#aaa', marginTop: 10 }}>
+              <Link href="/signup" style={{ color: 'var(--neon-cyan)' }}>
+                CREATE AN ACCOUNT
+              </Link>{' '}
+              TO SAVE PRESETS &amp; HISTORY
+            </p>
+          </div>
         </div>
-      </div>
+      </CrtShell>
     );
   }
 
-  return (
-    <div className="min-h-dvh grid-bg">
-      {/* Navbar */}
-      <nav className="sticky top-0 z-40 glass-dark border-b border-bg-600 px-6 py-4 flex items-center justify-between">
-        <Link href="/" className="text-xl font-black gradient-text">IMPOSTER</Link>
-        <div className="flex items-center gap-3">
-          {/* Coin balance + shop */}
-          <Link
-            href="/shop"
-            id="shop-nav-btn"
-            className="flex items-center gap-2 glass rounded-xl px-3 py-2 hover:bg-bg-700 transition-colors border border-amber-500/20 hover:border-amber-500/40"
-          >
-            <span className="text-lg">🪙</span>
-            <span className="text-amber-300 font-bold tabular-nums">{coins}</span>
-            <span className="text-zinc-500 text-xs hidden sm:inline">🛒 Shop</span>
-          </Link>
-
-          {session?.user ? (
-            <>
-              <div className="flex items-center gap-2 glass rounded-xl px-3 py-2">
-                <span className="text-xl">{(session.user as any)?.image || '🎮'}</span>
-                <span className="text-sm font-medium text-zinc-200">{session.user.name}</span>
-              </div>
-              <button
-                id="signout-btn"
-                onClick={() => signOut({ callbackUrl: '/' })}
-                className="btn-ghost btn-sm text-zinc-400"
-              >
-                Sign out
-              </button>
-            </>
-          ) : (
-            <div className="flex items-center gap-2 glass rounded-xl px-3 py-2">
-              <span className="text-xl">{playerAvatar}</span>
-              <span className="text-sm font-medium text-zinc-400">{playerName} (guest)</span>
-            </div>
-          )}
-        </div>
-      </nav>
-
-      <div className="max-w-6xl mx-auto px-6 py-10">
-        {/* Action Row */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-10">
-          <button
-            id="create-room-btn"
-            onClick={() => setShowCreateModal(true)}
-            className="btn-primary btn-lg flex-1"
-          >
-            + Create Room
-          </button>
-          <button
-            id="join-by-code-btn"
-            onClick={() => setShowJoinModal(true)}
-            className="btn-ghost btn-lg flex-1"
-          >
-            🔑 Join by Code
-          </button>
-        </div>
-
-        {/* Public Rooms */}
-        <section>
-          <h2 className="text-xl font-bold text-zinc-200 mb-4">
-            🌐 Public Rooms
-            <span className="ml-3 text-sm font-normal text-zinc-500">
-              {publicRooms.length} available
-            </span>
-          </h2>
-
-          {publicRooms.length === 0 ? (
-            <div className="glass rounded-2xl p-12 text-center">
-              <div className="text-5xl mb-4">🎮</div>
-              <p className="text-zinc-400 mb-2">No public rooms right now.</p>
-              <p className="text-zinc-500 text-sm">Create one and invite your friends!</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {publicRooms.map((room) => (
-                <RoomCard
-                  key={room.code}
-                  room={room}
-                  onJoin={() => handleJoinPublicRoom(room.code)}
-                />
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
-
-      {/* Modals */}
-      {showCreateModal && (
-        <CreateRoomModal
-          onClose={() => setShowCreateModal(false)}
-          onCreate={async (opts) => {
-            const code = await handleCreateRoom(opts);
-            router.push(`/room/${code}`);
+  const headerExtra = (
+    <>
+      <Link href="/shop" id="shop-nav-btn" className="coin-balance-display">
+        <span className="coin-icon">🪙</span>
+        <span className="coin-amount">{coins}</span>
+        <span className="coin-label">REWIND COINS</span>
+      </Link>
+      <div
+        className="coin-balance-display"
+        style={{ borderColor: 'var(--neon-cyan)', background: 'rgba(0,0,0,0.6)' }}
+      >
+        <span style={{ marginRight: 5, fontSize: '1.2rem' }}>{playerAvatar}</span>
+        <span
+          className="coin-amount"
+          style={{
+            fontFamily: 'var(--font-marker)',
+            fontSize: '1.1rem',
+            color: 'var(--neon-cyan)',
+            textShadow: 'none',
           }}
-          userId={userId}
-        />
+        >
+          {playerName}
+        </span>
+        <span className="coin-label" style={{ color: '#aaa', marginLeft: 8 }}>
+          {session?.user ? 'CONNECTED VCR' : 'GUEST VCR'}
+        </span>
+      </div>
+      {session?.user && (
+        <button
+          id="signout-btn"
+          className="btn-brutal dark"
+          style={{ fontSize: '0.8rem', padding: '6px 12px' }}
+          onClick={() => signOut({ callbackUrl: '/' })}
+        >
+          SIGN OUT
+        </button>
       )}
+    </>
+  );
 
-      {showJoinModal && (
-        <JoinRoomModal
-          onClose={() => setShowJoinModal(false)}
-          playerName={playerName || 'Guest'}
-          avatar={playerAvatar}
-          userId={userId}
-        />
-      )}
-    </div>
+  const openRooms = publicRooms.filter((r) => r.phase === 'lobby');
+
+  return (
+    <CrtShell home badge="LOBBY ROUTER" badgeColor="var(--neon-cyan)" headerExtra={headerExtra} recording>
+      <section className="gartic-hero-section" style={{ padding: '20px 0' }}>
+        <div className="gartic-container-wrapper" style={{ maxWidth: 1200, width: '95%' }}>
+          <div
+            className="gartic-main-box"
+            style={{ padding: 24, minHeight: '78vh', display: 'flex', flexDirection: 'column' }}
+          >
+            {error && (
+              <div className="word-phase-banner" style={{ display: 'block', marginBottom: 12 }}>
+                ⛔ {error}
+              </div>
+            )}
+
+            <div
+              className="gartic-inner-grid"
+              style={{ flexGrow: 1, gridTemplateColumns: '1.1fr 1.3fr', gap: 24, height: '100%' }}
+            >
+              {/* ── Left: browse & join ────────────────────────── */}
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 20,
+                  overflowY: 'auto',
+                  paddingRight: 8,
+                }}
+              >
+                <div
+                  className="brutal-card cyan-border"
+                  style={{ flexGrow: 1, padding: 18, background: 'rgba(13, 13, 26, 0.9)' }}
+                >
+                  <h3
+                    className="brutal-title"
+                    style={{
+                      fontSize: '1.3rem',
+                      color: 'var(--neon-cyan)',
+                      marginBottom: 12,
+                      textShadow: 'none',
+                    }}
+                  >
+                    🌐 ACTIVE PUBLIC TAPES ({openRooms.length})
+                  </h3>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {openRooms.length === 0 && (
+                      <p className="osd-text" style={{ color: '#888' }}>
+                        NO PUBLIC DECKS ROLLING — FORMAT ONE ON THE RIGHT.
+                      </p>
+                    )}
+
+                    {openRooms.map((room) => {
+                      const host = room.players.find((p) => p.id === room.hostId);
+                      const full = room.players.length >= room.settings.maxPlayers;
+                      const cat = room.settings.videoCategory
+                        ? VIDEO_CATEGORIES[room.settings.videoCategory]
+                        : null;
+                      const chat = room.settings.chatType ?? 'text';
+
+                      return (
+                        <div
+                          key={room.code}
+                          className={`lobby-item-card${full ? ' full-lobby' : ''}`}
+                        >
+                          <div className="lobby-item-meta">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span className="lobby-item-avatar">{host?.avatar || '🎮'}</span>
+                              <div>
+                                <span className="lobby-item-host">{host?.name || 'Host'}</span>
+                                <span className="lobby-item-code">{room.code}</span>
+                              </div>
+                            </div>
+                            <div className="lobby-item-players">
+                              {room.players.length}/{room.settings.maxPlayers} Players
+                            </div>
+                          </div>
+
+                          <div className="lobby-item-options">
+                            <span className="lobby-pill yellow">
+                              {cat ? `${cat.icon} ${cat.name.toUpperCase()}` : '⚙️ CUSTOM'}
+                            </span>
+                            <span className={`lobby-pill ${CHAT_PILL[chat]}`}>
+                              {CHAT_MODES.find((m) => m.id === chat)?.icon}{' '}
+                              {CHAT_MODES.find((m) => m.id === chat)?.label}
+                            </span>
+                          </div>
+
+                          <button
+                            className={`btn-brutal ${full ? 'dark' : 'cyan'}`}
+                            disabled={full || joining}
+                            style={full ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                            onClick={() => joinByCode(room.code)}
+                          >
+                            {full ? 'FULL 🚫' : 'JOIN TAPE ⏵'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div
+                  className="brutal-card magenta-border"
+                  style={{ padding: 16, background: 'rgba(13, 13, 26, 0.9)' }}
+                >
+                  <h3
+                    className="brutal-title"
+                    style={{
+                      fontSize: '1.2rem',
+                      color: 'var(--neon-magenta)',
+                      marginBottom: 10,
+                      textShadow: 'none',
+                    }}
+                  >
+                    🔑 ACCESS PRIVATE TAPE
+                  </h3>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <input
+                      id="room-code-input"
+                      type="text"
+                      className="osd-text"
+                      style={{
+                        ...inputStyle,
+                        flexGrow: 1,
+                        marginTop: 0,
+                        padding: '10px 14px',
+                        textTransform: 'uppercase',
+                        fontSize: '1.1rem',
+                        letterSpacing: 3,
+                      }}
+                      placeholder="ABC123"
+                      maxLength={6}
+                      value={privateCode}
+                      onChange={(e) => setPrivateCode(e.target.value.toUpperCase().slice(0, 6))}
+                      onKeyDown={(e) => e.key === 'Enter' && joinByCode(privateCode)}
+                    />
+                    <button
+                      id="join-room-btn"
+                      className="btn-brutal magenta"
+                      style={{ margin: 0, padding: '0 16px' }}
+                      disabled={joining || privateCode.trim().length !== 6}
+                      onClick={() => joinByCode(privateCode)}
+                    >
+                      INSERT TAPE
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Right: host a deck ─────────────────────────── */}
+              <div
+                className="brutal-card yellow-border"
+                style={{
+                  padding: 20,
+                  background: 'rgba(13, 13, 26, 0.9)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflowY: 'auto',
+                }}
+              >
+                <h3
+                  className="brutal-title"
+                  style={{
+                    fontSize: '1.4rem',
+                    color: 'var(--neon-yellow)',
+                    marginBottom: 16,
+                    textShadow: 'none',
+                  }}
+                >
+                  📟 FORMAT BLANK DECK (HOST LOBBY)
+                </h3>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16, flexGrow: 1 }}>
+                  <div>
+                    <label className="form-section-title">🔒 DECK VISIBILITY</label>
+                    <div style={{ display: 'flex', gap: 10, marginTop: 5 }}>
+                      <button
+                        id="opt-public"
+                        className={`btn-brutal option-btn flex-1${isPublic ? ' active' : ''}`}
+                        onClick={() => setIsPublic(true)}
+                      >
+                        🌐 PUBLIC
+                      </button>
+                      <button
+                        id="opt-private"
+                        className={`btn-brutal option-btn flex-1${!isPublic ? ' active' : ''}`}
+                        onClick={() => setIsPublic(false)}
+                      >
+                        🔒 PRIVATE
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="form-section-title">💬 COMMUNICATE MODE</label>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(4, 1fr)',
+                        gap: 10,
+                        marginTop: 5,
+                      }}
+                    >
+                      {CHAT_MODES.map((m) => (
+                        <button
+                          key={m.id}
+                          className={`btn-brutal option-btn chat-btn${
+                            chatType === m.id ? ' active' : ''
+                          }`}
+                          onClick={() => setChatType(m.id)}
+                        >
+                          <span style={{ fontSize: '1.3rem', display: 'block', marginBottom: 2 }}>
+                            {m.icon}
+                          </span>
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="form-section-title">🎬 VIDEO RECORDING STYLE</label>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(2, 1fr)',
+                        gap: 10,
+                        marginTop: 5,
+                      }}
+                    >
+                      {Object.values(VIDEO_CATEGORIES).map((c) => (
+                        <button
+                          key={c.id}
+                          className={`btn-brutal option-btn category-btn${
+                            category === c.id ? ' active' : ''
+                          }`}
+                          onClick={() => setCategory(c.id)}
+                        >
+                          <span style={{ fontSize: '1.3rem', display: 'block', marginBottom: 2 }}>
+                            {c.icon}
+                          </span>
+                          {c.name.toUpperCase()}
+                        </button>
+                      ))}
+                      <button
+                        className={`btn-brutal option-btn category-btn${
+                          category === 'custom' ? ' active' : ''
+                        }`}
+                        onClick={() => setCategory('custom')}
+                      >
+                        <span style={{ fontSize: '1.3rem', display: 'block', marginBottom: 2 }}>
+                          ⚙️
+                        </span>
+                        CUSTOM URL
+                      </button>
+                    </div>
+                  </div>
+
+                  {category === 'custom' && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 12,
+                        marginTop: 5,
+                        borderLeft: '4px solid var(--neon-yellow)',
+                        paddingLeft: 12,
+                      }}
+                    >
+                      <div>
+                        <label
+                          className="form-section-title"
+                          style={{ fontSize: '0.8rem', color: '#ccc' }}
+                          htmlFor="url-crew"
+                        >
+                          🎬 CREWMATE VIDEO URL
+                        </label>
+                        <input
+                          id="url-crew"
+                          type="text"
+                          className="osd-text"
+                          style={inputStyle}
+                          placeholder="https://youtube.com/watch?v=…"
+                          value={crewUrl}
+                          onChange={(e) => setCrewUrl(e.target.value)}
+                        />
+                        {crewUrl && !isValidVideoUrl(crewUrl) && (
+                          <span
+                            className="osd-text"
+                            style={{ color: 'var(--neon-magenta)', fontSize: '0.75rem' }}
+                          >
+                            INVALID VIDEO URL
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        <label
+                          className="form-section-title"
+                          style={{ fontSize: '0.8rem', color: '#ccc' }}
+                          htmlFor="url-imposter"
+                        >
+                          👁️ SUSPECT VIDEO URL
+                        </label>
+                        <input
+                          id="url-imposter"
+                          type="text"
+                          className="osd-text"
+                          style={inputStyle}
+                          placeholder="https://youtube.com/watch?v=…"
+                          value={imposterUrl}
+                          onChange={(e) => setImposterUrl(e.target.value)}
+                        />
+                        {imposterUrl && !isValidVideoUrl(imposterUrl) && (
+                          <span
+                            className="osd-text"
+                            style={{ color: 'var(--neon-magenta)', fontSize: '0.75rem' }}
+                          >
+                            INVALID VIDEO URL
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  id="create-room-btn"
+                  className="btn-brutal yellow large-brutal-btn"
+                  style={{ marginTop: 20, width: '100%' }}
+                  disabled={hosting || !customValid}
+                  onClick={hostRoom}
+                >
+                  {hosting ? 'FORMATTING…' : 'INSERT BLANK TAPE & HOST ⏵'}
+                </button>
+              </div>
+            </div>
+
+            <div
+              className="gartic-box-footer"
+              style={{
+                marginTop: 20,
+                flexShrink: 0,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <Link
+                href="/"
+                id="btn-back-home"
+                className="btn-brutal dark"
+                style={{ margin: 0, padding: '6px 16px' }}
+              >
+                ◀ RETURN HOME
+              </Link>
+              <div className="balance-pill" style={{ margin: 0 }}>
+                <span className="coin-icon">🟢</span>
+                <span className="coin-label" style={{ textShadow: 'none', color: '#000' }}>
+                  SYSTEM OPERATIONAL
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </CrtShell>
   );
 }
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-dvh flex items-center justify-center grid-bg">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-violet-500 mx-auto mb-4"></div>
-          <p className="text-zinc-400 font-medium">Loading Dashboard...</p>
-        </div>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <CrtShell home badge="LOBBY ROUTER" badgeColor="var(--neon-cyan)">
+          <div style={{ display: 'grid', placeItems: 'center', flex: 1 }}>
+            <div className="osd-text" style={{ color: 'var(--neon-cyan)' }}>
+              SPOOLING UP…
+            </div>
+          </div>
+        </CrtShell>
+      }
+    >
       <DashboardContent />
     </Suspense>
-  );
-}
-
-
-function RoomCard({ room, onJoin }: { room: RoomPublic; onJoin: () => void }) {
-  const host = room.players.find((p) => p.id === room.hostId);
-  const isFull = room.players.length >= room.settings.maxPlayers;
-
-  return (
-    <div className="card group cursor-pointer" onClick={!isFull ? onJoin : undefined}>
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">{host?.avatar || '🎮'}</span>
-          <div>
-            <p className="font-semibold text-white text-sm">{host?.name || 'Host'}</p>
-            <p className="text-xs text-zinc-500 font-mono">{room.code}</p>
-          </div>
-        </div>
-        <span className="text-xs px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-          Lobby
-        </span>
-      </div>
-
-      <div className="flex items-center justify-between mt-4">
-        <div className="flex items-center gap-1">
-          {room.players.slice(0, 5).map((p) => (
-            <span key={p.id} className="text-lg" title={p.name}>
-              {p.avatar}
-            </span>
-          ))}
-          {room.players.length > 5 && (
-            <span className="text-xs text-zinc-500 ml-1">+{room.players.length - 5}</span>
-          )}
-        </div>
-        <span className="text-sm text-zinc-400">
-          {room.players.length}/{room.settings.maxPlayers}
-        </span>
-      </div>
-
-      <button
-        className={`btn w-full mt-4 text-sm ${isFull ? 'btn-ghost opacity-50 cursor-not-allowed' : 'btn-primary'}`}
-        disabled={isFull}
-      >
-        {isFull ? 'Full' : 'Join Room'}
-      </button>
-    </div>
   );
 }

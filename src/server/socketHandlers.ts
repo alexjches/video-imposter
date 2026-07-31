@@ -1,32 +1,62 @@
 // src/server/socketHandlers.ts
-// All Socket.io event handlers
+// All Socket.io event handlers.
+//
+// Phase flow (docs/BUILD-PLAN.md sections 6-9):
+//   lobby -> playing -> words -> deliberation -> results
 
 import { Server, Socket } from 'socket.io';
 import {
   createRoom,
   getRoom,
-  deleteRoom,
   getPublicRooms,
   addPlayer,
   removePlayer,
   getPlayerRoom,
   setPlayerReady,
   allPlayersReady,
+  resetRound,
+  generateRoomCode,
+  markVideoEnded,
+  markReadyToAdvance,
+  allReadyToAdvance,
+  connectedPlayers,
+  beginWordPhase,
+  recordWord,
+  playerFinishedTurn,
+  advanceTurn,
+  beginDeliberation,
   castVote,
   getVoteTally,
-  getMostVoted,
-  generateRoomCode,
-  addDiscussionWord,
-  setDiscussionReady,
-  resetDiscussion,
+  pendingVoters,
+  resolveVote,
+  beginRevote,
+  DELIBERATION_SECONDS,
   Player,
   RoomSettings,
   RoomState,
 } from './gameState';
 import { getRandomVideoPair } from '../lib/videoCategories';
 
+// ── Phase 1 rule constants (docs/BUILD-PLAN.md) ──────────────────────
+// Lobby size 4–10 (section 20). Phase 1 ships a single imposter only
+// (section 16) — 2-imposter lobbies unlock at 7+ players in Phase 2.
+const MIN_PLAYERS = 4;
+const MAX_PLAYERS = 10;
+
+// Section 6: the word phase starts once everyone is ready, or 10s after the
+// imposter's video ends — whichever comes first — so one straggler cannot
+// hold up the lobby.
+const READY_GRACE_SECONDS = 10;
+
+// Reward values are confirmed, not placeholders (section 9):
+//   crew win 50+25=75 / crew lose 50 / imposter win 50+50=100 / imposter lose 50
+const BASE_COINS = 50;
+const CREW_WIN_BONUS = 25;
+const IMPOSTER_WIN_BONUS = 50;
+
 function sanitizeRoom(room: RoomState) {
-  // Never send video URLs to clients here — they're sent individually during game:assigned
+  // Never send video URLs or roles to clients. URLs go out individually in
+  // game:assigned; roles are revealed only in game:results (section 3).
   return {
     code: room.code,
     hostId: room.hostId,
@@ -55,7 +85,7 @@ function sanitizeRoom(room: RoomState) {
   };
 }
 
-// Keep track of active intervals for turn count-downs
+// One timer per room — phases are sequential so only one can be active.
 const roomTimers = new Map<string, NodeJS.Timeout>();
 
 function clearRoomTimer(code: string) {
@@ -66,74 +96,165 @@ function clearRoomTimer(code: string) {
   }
 }
 
-function startDiscussionTurns(room: RoomState, io: Server) {
+function setRoomTimer(code: string, fn: () => void, ms = 1000) {
+  clearRoomTimer(code);
+  roomTimers.set(code, setInterval(fn, ms));
+}
+
+// ─── Ready check (section 6) ─────────────────────────────────────────────────
+
+function broadcastReadyState(room: RoomState, io: Server) {
+  const active = connectedPlayers(room);
+  io.to(room.code).emit('game:readyState', {
+    videoEnded: room.videoEnded,
+    readyToAdvance: room.readyToAdvance,
+    ready: active.filter((p) => room.readyToAdvance[p.id]).length,
+    total: active.length,
+    graceEndsAt: room.imposterVideoEndedAt
+      ? room.imposterVideoEndedAt + READY_GRACE_SECONDS * 1000
+      : null,
+  });
+}
+
+/** Starts the 10s countdown that begins once the imposter's video ends. */
+function startReadyGrace(room: RoomState, io: Server) {
+  setRoomTimer(room.code, () => {
+    const current = getRoom(room.code);
+    if (!current || current.phase !== 'playing') {
+      clearRoomTimer(room.code);
+      return;
+    }
+    const deadline = (current.imposterVideoEndedAt ?? 0) + READY_GRACE_SECONDS * 1000;
+    if (Date.now() >= deadline) {
+      startWordPhase(current, io);
+    }
+  });
+}
+
+// ─── Word phase (section 7) ──────────────────────────────────────────────────
+
+function startWordPhase(room: RoomState, io: Server) {
   clearRoomTimer(room.code);
-  
-  room.discussionWords = {};
-  room.discussionReady = {};
-  room.discussionOpen = false;
+  beginWordPhase(room);
 
-  // Build the turn order: only connected players
-  room.discussionTurnOrder = room.players
-    .filter((p) => p.status === 'connected')
-    .map((p) => p.id);
-  room.discussionTurnIndex = 0;
-  room.activePlayerId = room.discussionTurnOrder[0] || null;
-  room.turnTimeLeft = 10;
+  io.to(room.code).emit('game:wordPhaseStart', {
+    ...sanitizeRoom(room),
+    turnOrder: room.turnOrder,
+    activePlayerId: room.activePlayerId,
+    turnTimeLeft: room.turnTimeLeft,
+    wordsPerPlayer: room.settings.wordsPerPlayer,
+  });
 
-  if (room.activePlayerId) {
-    startTurnTimer(room, io);
-  } else {
-    room.discussionOpen = true;
-  }
+  if (room.activePlayerId) startTurnTimer(room, io);
+  else startDeliberation(room, io);
 }
 
 function startTurnTimer(room: RoomState, io: Server) {
-  clearRoomTimer(room.code);
-  const timer = setInterval(() => {
-    room.turnTimeLeft--;
-    if (room.turnTimeLeft <= 0) {
-      // Time is up! Move to the next player
-      advanceDiscussionTurn(room, io);
-    } else {
-      broadcastDiscussionStatus(room, io);
+  setRoomTimer(room.code, () => {
+    const current = getRoom(room.code);
+    if (!current || current.phase !== 'words') {
+      clearRoomTimer(room.code);
+      return;
     }
-  }, 1000);
-  roomTimers.set(room.code, timer);
-}
-
-function advanceDiscussionTurn(room: RoomState, io: Server) {
-  room.discussionTurnIndex++;
-  if (room.discussionTurnIndex >= room.discussionTurnOrder.length) {
-    // All players have had their turn to say their word!
-    clearRoomTimer(room.code);
-    room.activePlayerId = null;
-    room.discussionOpen = true;
-    
-    // Broadcast discussion open
-    io.to(room.code).emit('game:discussionOpen', {
-      message: 'All words said — free discussion now open!',
-    });
-  } else {
-    // Next player's turn
-    room.activePlayerId = room.discussionTurnOrder[room.discussionTurnIndex];
-    room.turnTimeLeft = 10;
-    startTurnTimer(room, io);
-  }
-  
-  broadcastDiscussionStatus(room, io);
-}
-
-function broadcastDiscussionStatus(room: RoomState, io: Server) {
-  io.to(room.code).emit('game:discussionStatus', {
-    wordsUsed: room.discussionWords,
-    readyPlayers: room.discussionReady,
-    isOpen: room.discussionOpen,
-    wordsPerPlayer: room.settings.wordsPerPlayer,
-    activePlayerId: room.activePlayerId,
-    turnTimeLeft: room.turnTimeLeft,
+    current.turnTimeLeft--;
+    if (current.turnTimeLeft <= 0) {
+      // Section 7: timing out auto-skips with a blank word.
+      nextTurn(current, io);
+    } else {
+      broadcastTurnState(current, io);
+    }
   });
 }
+
+function nextTurn(room: RoomState, io: Server) {
+  const hasMore = advanceTurn(room);
+  if (!hasMore) {
+    startDeliberation(room, io);
+    return;
+  }
+  broadcastTurnState(room, io);
+  startTurnTimer(room, io);
+}
+
+function broadcastTurnState(room: RoomState, io: Server) {
+  io.to(room.code).emit('game:turnState', {
+    activePlayerId: room.activePlayerId,
+    turnTimeLeft: room.turnTimeLeft,
+    turnIndex: room.turnIndex,
+    wordsUsed: room.wordsUsed,
+  });
+}
+
+// ─── Deliberation (section 8) ────────────────────────────────────────────────
+
+function startDeliberation(room: RoomState, io: Server) {
+  clearRoomTimer(room.code);
+  beginDeliberation(room);
+
+  io.to(room.code).emit('game:deliberationStart', {
+    ...sanitizeRoom(room),
+    endsAt: room.deliberationEndsAt,
+    durationSeconds: DELIBERATION_SECONDS,
+    voteRound: room.voteRound,
+    revoteCandidates: room.revoteCandidates,
+  });
+
+  startDeliberationTimer(room, io);
+}
+
+function startDeliberationTimer(room: RoomState, io: Server) {
+  setRoomTimer(room.code, () => {
+    const current = getRoom(room.code);
+    if (!current || current.phase !== 'deliberation') {
+      clearRoomTimer(room.code);
+      return;
+    }
+    const msLeft = (current.deliberationEndsAt ?? 0) - Date.now();
+    if (msLeft <= 0) {
+      // Section 8: the window closing resolves the ballot as it stands.
+      concludeVote(current, io);
+      return;
+    }
+    io.to(current.code).emit('game:deliberationTick', {
+      secondsLeft: Math.ceil(msLeft / 1000),
+    });
+  });
+}
+
+/** Resolves the ballot: either an accusation, or another re-vote round. */
+function concludeVote(room: RoomState, io: Server) {
+  const outcome = resolveVote(room);
+
+  if (outcome.kind === 'revote') {
+    beginRevote(room, outcome);
+    io.to(room.code).emit('game:revote', {
+      candidates: outcome.candidates,
+      eligibleVoters: outcome.eligibleVoters,
+      voteRound: room.voteRound,
+      endsAt: room.deliberationEndsAt,
+      durationSeconds: DELIBERATION_SECONDS,
+      tally: getVoteTally(room),
+    });
+    startDeliberationTimer(room, io);
+    console.log(
+      `[Vote] Tie in ${room.code} between ${outcome.candidates.join(', ')} — re-vote round ${room.voteRound}`
+    );
+    return;
+  }
+
+  finalizeResults(room, io, outcome.accusedId);
+}
+
+function broadcastTally(room: RoomState, io: Server) {
+  const active = connectedPlayers(room);
+  io.to(room.code).emit('vote:tally', {
+    tally: getVoteTally(room),
+    votescast: Object.keys(room.votes).length,
+    totalVoters: active.length,
+  });
+}
+
+// ─── Handlers ────────────────────────────────────────────────────────────────
 
 export function registerSocketHandlers(io: Server) {
   io.on('connection', (socket: Socket) => {
@@ -151,8 +272,7 @@ export function registerSocketHandlers(io: Server) {
           normalVideoUrl?: string;
           imposterVideoUrl?: string;
           wordsPerPlayer?: number;
-          imposterCount?: number;
-          chatType?: 'text' | 'voice' | 'video';
+          chatType?: RoomSettings['chatType'];
           videoCategory?: string | null;
         },
         callback: (res: { success: boolean; code?: string; error?: string }) => void
@@ -173,14 +293,16 @@ export function registerSocketHandlers(io: Server) {
           isPublic: data.isPublic,
           normalVideoUrl: data.normalVideoUrl || '',
           imposterVideoUrl: data.imposterVideoUrl || '',
-          maxPlayers: 12,
+          maxPlayers: MAX_PLAYERS,
           wordsPerPlayer: data.wordsPerPlayer ?? 1,
-          imposterCount: data.imposterCount ?? 1,
+          // Phase 1 is single-imposter only (section 16); the 2-imposter mode
+          // is Phase 2 and runs a different two-round structure.
+          imposterCount: 1,
           chatType: data.chatType ?? 'text',
           videoCategory: data.videoCategory ?? null,
         };
 
-        const room = createRoom(code, host, settings);
+        createRoom(code, host, settings);
         socket.join(code);
 
         io.emit('rooms:updated', getPublicRooms().map(sanitizeRoom));
@@ -239,7 +361,7 @@ export function registerSocketHandlers(io: Server) {
         normalVideoUrl?: string;
         imposterVideoUrl?: string;
         wordsPerPlayer?: number;
-        imposterCount?: number;
+        chatType?: RoomSettings['chatType'];
         videoCategory?: string | null;
       }) => {
         const room = getRoom(data.code);
@@ -248,12 +370,14 @@ export function registerSocketHandlers(io: Server) {
         if (data.isPublic !== undefined) room.settings.isPublic = data.isPublic;
         if (data.normalVideoUrl !== undefined) room.settings.normalVideoUrl = data.normalVideoUrl;
         if (data.imposterVideoUrl !== undefined) room.settings.imposterVideoUrl = data.imposterVideoUrl;
-        if (data.wordsPerPlayer !== undefined) room.settings.wordsPerPlayer = Math.max(1, Math.min(10, data.wordsPerPlayer));
-        if (data.imposterCount !== undefined) {
-          const maxImposters = Math.max(1, Math.floor(room.players.length / 2));
-          room.settings.imposterCount = Math.max(1, Math.min(3, Math.min(maxImposters, data.imposterCount)));
+        if (data.wordsPerPlayer !== undefined) {
+          room.settings.wordsPerPlayer = Math.max(1, Math.min(10, data.wordsPerPlayer));
         }
+        if (data.chatType !== undefined) room.settings.chatType = data.chatType;
         if (data.videoCategory !== undefined) room.settings.videoCategory = data.videoCategory;
+        // imposterCount is deliberately not settable in Phase 1 — it is pinned
+        // to 1 (section 16). The 2-imposter option unlocks in Phase 2 at 7+
+        // players and needs the two-round flow from section 3.
 
         io.to(data.code).emit('room:updated', sanitizeRoom(room));
         io.emit('rooms:updated', getPublicRooms().map(sanitizeRoom));
@@ -281,12 +405,14 @@ export function registerSocketHandlers(io: Server) {
     socket.on('game:start', (data: { code: string }) => {
       const room = getRoom(data.code);
       if (!room || room.hostId !== socket.id) return;
-      if (room.players.length < 2) {
-        socket.emit('game:error', { message: 'Need at least 2 players to start' });
+      if (room.players.length < MIN_PLAYERS) {
+        socket.emit('game:error', {
+          message: `Need at least ${MIN_PLAYERS} players to start`,
+        });
         return;
       }
-      
-      // If a category is selected, try to pick a random video pair for this round
+
+      // If a category is selected, pick a random video pair for this round
       if (room.settings.videoCategory && room.settings.videoCategory !== 'custom') {
         const randomVideo = getRandomVideoPair(room.settings.videoCategory);
         if (randomVideo) {
@@ -300,40 +426,32 @@ export function registerSocketHandlers(io: Server) {
         return;
       }
 
-      // Pick N random imposters (no duplicates)
-      const imposterCount = Math.max(1, Math.min(
-        room.settings.imposterCount,
-        Math.floor(room.players.length / 2)
-      ));
-
-      const shuffled = [...room.players].sort(() => Math.random() - 0.5);
-      const imposters = shuffled.slice(0, imposterCount);
-      const imposterIds = imposters.map((p) => p.id);
-
-      room.imposterIds = imposterIds;
-      room.imposterId = imposterIds[0]; // backwards compat
+      // Phase 1: exactly one imposter (section 16), picked uniformly.
+      const imposter = room.players[Math.floor(Math.random() * room.players.length)];
+      // resetRound clears per-round state but not roles, so assign after it.
+      resetRound(room);
+      room.imposterIds = [imposter.id];
+      room.imposterId = imposter.id;
       room.phase = 'playing';
       room.gameStartedAt = Date.now();
-
-      // Reset ready flags & discussion state
       room.players.forEach((p) => (p.isReady = false));
-      resetDiscussion(room);
 
-      // Send each player their individual video URL (secret!)
+      // Send each player only their video URL — never their role. Section 3:
+      // nobody is told whether they are Crewmate or Imposter, so the payload
+      // must not carry `isImposter` even if no UI renders it; it would be
+      // trivially readable from the network tab.
       room.players.forEach((player) => {
-        const isImposter = imposterIds.includes(player.id);
+        const isImposter = room.imposterIds.includes(player.id);
         io.to(player.id).emit('game:assigned', {
-          isImposter,
           videoUrl: isImposter ? room.settings.imposterVideoUrl : room.settings.normalVideoUrl,
         });
       });
 
-      // Notify the room that game started (no video URLs in this broadcast)
       io.to(data.code).emit('room:updated', sanitizeRoom(room));
-      console.log(`[Game] Started in room ${data.code}, imposters: ${imposters.map(p => p.name).join(', ')}`);
+      console.log(`[Game] Started in room ${data.code}`);
     });
 
-    // ─── Game: Player Ready (video loaded) ──────────────────────────
+    // ─── Game: Player's video loaded and ready to play ──────────────
     socket.on('game:syncReady', (data: { code: string }) => {
       const room = getRoom(data.code);
       if (!room || room.phase !== 'playing') return;
@@ -341,14 +459,13 @@ export function registerSocketHandlers(io: Server) {
       const updatedRoom = setPlayerReady(data.code, socket.id);
       if (!updatedRoom) return;
 
-      // Broadcast ready count
       const readyCount = updatedRoom.players.filter((p) => p.isReady).length;
       io.to(data.code).emit('game:readyCount', {
         ready: readyCount,
         total: updatedRoom.players.length,
       });
 
-      // All ready → everyone play NOW
+      // All loaded → everyone plays at the same wall-clock moment
       if (allPlayersReady(updatedRoom)) {
         const playTimestamp = Date.now() + 1000; // 1s grace period
         io.to(data.code).emit('game:play', { playAt: playTimestamp });
@@ -356,103 +473,69 @@ export function registerSocketHandlers(io: Server) {
       }
     });
 
-    // ─── Game: Ready to Skip Video to Voting (collective) ───────────
-    socket.on('game:readyToSkip', (data: { code: string }) => {
-      const room = getRoom(data.code);
-      if (!room || room.phase !== 'playing') return;
-
-      // Track readiness using discussionReady state
-      room.discussionReady[socket.id] = true;
-      const readyCount = Object.values(room.discussionReady).filter(Boolean).length;
-      
-      io.to(data.code).emit('game:skipReadyCount', {
-        ready: readyCount,
-        total: room.players.length,
-      });
-
-      if (readyCount >= room.players.length) {
-        // Skip straight to voting
-        room.phase = 'voting';
-        room.votes = {};
-        io.to(data.code).emit('game:votingStart', sanitizeRoom(room));
-        console.log(`[Game] All players ready to skip to voting in ${data.code}`);
-      }
-    });
-
-    // ─── Game: Video Ended (natural end) — goes to discussion phase ──
+    // ─── Ready check: this player's video finished (section 6) ──────
     socket.on('game:videoEnded', (data: { code: string }) => {
       const room = getRoom(data.code);
       if (!room || room.phase !== 'playing') return;
-      if (room.hostId !== socket.id) return; // Only host triggers this
 
-      startDiscussionTurns(room, io);
-      io.to(data.code).emit('game:discussionStart', {
-        ...sanitizeRoom(room),
-        wordsPerPlayer: room.settings.wordsPerPlayer,
-        wordsUsed: room.discussionWords,
-        readyPlayers: room.discussionReady,
-        isOpen: room.discussionOpen,
-        activePlayerId: room.activePlayerId,
-        turnTimeLeft: room.turnTimeLeft,
-      });
-      console.log(`[Game] Discussion phase started in ${data.code}`);
+      const wasImposter = markVideoEnded(room, socket.id);
+      broadcastReadyState(room, io);
+
+      // The imposter finishing starts the 10s grace countdown.
+      if (wasImposter) startReadyGrace(room, io);
     });
 
-    // ─── Discussion: Player video-ended and clicked ready ───────────
-    socket.on('game:playerVideoEnded', (data: { code: string }) => {
+    // ─── Ready check: this player clicked Ready (section 6) ─────────
+    socket.on('game:readyToAdvance', (data: { code: string }) => {
       const room = getRoom(data.code);
       if (!room || room.phase !== 'playing') return;
 
-      // Signal to the room this player has finished watching
-      io.to(data.code).emit('game:playerFinishedVideo', { playerId: socket.id });
+      markReadyToAdvance(room, socket.id);
+      broadcastReadyState(room, io);
+
+      if (allReadyToAdvance(room)) {
+        startWordPhase(room, io);
+      }
     });
 
-    // ─── Discussion: Send a restricted word ─────────────────────────
-    socket.on('game:discussionWord', (data: { code: string; word: string }) => {
+    // ─── Word phase: submit your word (section 7) ───────────────────
+    socket.on('game:word', (data: { code: string; word: string }) => {
       const room = getRoom(data.code);
-      if (!room || room.phase !== 'discussion') return;
-      if (room.discussionOpen) return; // words phase is over
-      if (room.activePlayerId !== socket.id) return; // only allowed when it is this player's turn
+      if (!room || room.phase !== 'words') return;
+      if (room.activePlayerId !== socket.id) return; // not your turn
 
       const player = room.players.find((p) => p.id === socket.id);
       if (!player) return;
+      if (playerFinishedTurn(room, socket.id)) return; // quota already used
 
-      const wordsUsed = room.discussionWords[socket.id] || 0;
-      if (wordsUsed >= room.settings.wordsPerPlayer) return; // quota exceeded
-
-      // Sanitize: one word only (no spaces, max 30 chars)
+      // One word only: strip whitespace, cap length.
       const word = data.word.trim().replace(/\s+/g, '').slice(0, 30);
       if (!word) return;
 
-      const { room: updatedRoom } = addDiscussionWord(data.code, socket.id);
-      if (!updatedRoom) return;
+      recordWord(room, socket.id);
 
-      const wordIndex = updatedRoom.discussionWords[socket.id];
-
-      // Broadcast the word as a message
-      io.to(data.code).emit('game:discussionWord', {
+      io.to(data.code).emit('game:word', {
         playerId: socket.id,
         playerName: player.name,
         avatar: player.avatar,
         word,
-        wordIndex,
+        wordIndex: room.wordsUsed[socket.id],
         timestamp: Date.now(),
       });
 
-      // Move to the next player if they used all their words
-      const currentUserWordsUsed = updatedRoom.discussionWords[socket.id] || 0;
-      if (currentUserWordsUsed >= updatedRoom.settings.wordsPerPlayer) {
-        advanceDiscussionTurn(updatedRoom, io);
+      if (playerFinishedTurn(room, socket.id)) {
+        nextTurn(room, io);
       } else {
-        broadcastDiscussionStatus(updatedRoom, io);
+        broadcastTurnState(room, io);
       }
     });
 
-    // ─── Discussion: Send free chat message (after words used) ───────
-    socket.on('game:discussionChat', (data: { code: string; message: string }) => {
+    // ─── Deliberation: chat (section 8, simultaneous with voting) ───
+    socket.on('game:chat', (data: { code: string; message: string }) => {
       const room = getRoom(data.code);
-      if (!room || room.phase !== 'discussion') return;
-      if (!room.discussionOpen) return; // only allowed once free chat is open
+      if (!room || room.phase !== 'deliberation') return;
+      // 'none' lobbies coordinate on an external call — no in-app chat.
+      if (room.settings.chatType === 'none') return;
 
       const player = room.players.find((p) => p.id === socket.id);
       if (!player) return;
@@ -470,31 +553,7 @@ export function registerSocketHandlers(io: Server) {
       });
     });
 
-    // ─── Discussion: Player signals ready to vote ────────────────────
-    socket.on('game:discussionReady', (data: { code: string }) => {
-      const room = getRoom(data.code);
-      if (!room || room.phase !== 'discussion') return;
-
-      const { room: updatedRoom, allReady } = setDiscussionReady(data.code, socket.id);
-      if (!updatedRoom) return;
-
-      const readyCount = Object.values(updatedRoom.discussionReady).filter(Boolean).length;
-      io.to(data.code).emit('game:discussionReadyCount', {
-        ready: readyCount,
-        total: updatedRoom.players.length,
-        readyPlayers: updatedRoom.discussionReady,
-      });
-
-      if (allReady) {
-        // Transition to voting
-        updatedRoom.phase = 'voting';
-        updatedRoom.votes = {};
-        io.to(data.code).emit('game:votingStart', sanitizeRoom(updatedRoom));
-        console.log(`[Discussion] All ready → voting in ${data.code}`);
-      }
-    });
-
-    // ─── Vote: Cast ─────────────────────────────────────────────────
+    // ─── Deliberation: cast a vote (section 8) ──────────────────────
     socket.on(
       'vote:cast',
       (
@@ -502,46 +561,40 @@ export function registerSocketHandlers(io: Server) {
         callback?: (res: { success: boolean; error?: string }) => void
       ) => {
         const room = getRoom(data.code);
-        if (!room || room.phase !== 'voting') {
-          callback?.({ success: false, error: 'Voting not active' });
-          return;
-        }
-        if (data.targetId === socket.id) {
-          callback?.({ success: false, error: 'Cannot vote for yourself' });
-          return;
-        }
-        if (room.votes[socket.id]) {
-          callback?.({ success: false, error: 'Already voted' });
+        if (!room) {
+          callback?.({ success: false, error: 'Room not found' });
           return;
         }
 
-        const updatedRoom = castVote(data.code, socket.id, data.targetId);
-        if (!updatedRoom) return;
+        const result = castVote(room, socket.id, data.targetId);
+        if (!result.ok) {
+          const messages: Record<string, string> = {
+            not_voting: 'Voting is not open',
+            self: 'Cannot vote for yourself',
+            already_voted: 'You have already voted this round',
+            not_a_candidate: 'That player is not on the re-vote ballot',
+            not_eligible: 'You are not eligible to recast this round',
+          };
+          callback?.({ success: false, error: messages[result.reason] });
+          return;
+        }
 
-        const tally = getVoteTally(updatedRoom);
-        const totalVoters = updatedRoom.players.length;
-        const votescast = Object.keys(updatedRoom.votes).length;
-
-        // Broadcast live tally (hide who voted for whom — just show counts per player)
-        io.to(data.code).emit('vote:tally', {
-          tally,
-          votescast,
-          totalVoters,
-        });
-
+        broadcastTally(room, io);
         callback?.({ success: true });
 
-        // All votes in → go to results
-        if (votescast >= totalVoters) {
-          finalizeResults(data.code, io);
+        // Everyone still connected has voted → resolve immediately rather
+        // than waiting out the rest of the 90s window.
+        if (pendingVoters(room).length === 0) {
+          concludeVote(room, io);
         }
       }
     );
 
-    // ─── Room: Chat (lobby chat) ─────────────────────────────────────
+    // ─── Room: Lobby chat ────────────────────────────────────────────
     socket.on('room:chat', (data: { code: string; message: string }) => {
       const room = getRoom(data.code);
       if (!room) return;
+      if (room.settings.chatType === 'none') return;
       const player = room.players.find((p) => p.id === socket.id);
       if (!player) return;
       if (data.message.trim().length === 0) return;
@@ -555,19 +608,18 @@ export function registerSocketHandlers(io: Server) {
       });
     });
 
-    // ─── Game: Results Acknowledge (play again) ──────────────────────
+    // ─── Game: Back to lobby (host only) ─────────────────────────────
     socket.on('game:backToLobby', (data: { code: string }) => {
       const room = getRoom(data.code);
       if (!room || room.hostId !== socket.id) return;
 
+      clearRoomTimer(data.code);
       room.phase = 'lobby';
       room.imposterId = null;
       room.imposterIds = [];
-      room.votes = {};
       room.gameStartedAt = null;
       room.players.forEach((p) => (p.isReady = false));
-      resetDiscussion(room);
-      clearRoomTimer(data.code);
+      resetRound(room);
 
       io.to(data.code).emit('room:updated', sanitizeRoom(room));
     });
@@ -585,53 +637,42 @@ export function registerSocketHandlers(io: Server) {
       if (!room) return;
 
       const code = room.code;
-
-      // Handle active player disconnect during discussion turns
-      if (room.phase === 'discussion' && !room.discussionOpen && room.discussionTurnOrder) {
-        const idx = room.discussionTurnOrder.indexOf(socket.id);
-        if (idx !== -1) {
-          room.discussionTurnOrder.splice(idx, 1);
-          
-          if (room.activePlayerId === socket.id) {
-            if (room.discussionTurnIndex >= room.discussionTurnOrder.length) {
-              clearRoomTimer(room.code);
-              room.activePlayerId = null;
-              room.discussionOpen = true;
-              io.to(room.code).emit('game:discussionOpen', {
-                message: 'All words said — free discussion now open!',
-              });
-            } else {
-              room.activePlayerId = room.discussionTurnOrder[room.discussionTurnIndex];
-              room.turnTimeLeft = 10;
-              startTurnTimer(room, io);
-            }
-          } else {
-            if (idx < room.discussionTurnIndex) {
-              room.discussionTurnIndex--;
-            }
-          }
-        }
-      }
+      const wasActiveSpeaker = room.phase === 'words' && room.activePlayerId === socket.id;
+      const leaverTurnIndex = room.turnOrder.indexOf(socket.id);
 
       const updatedRoom = removePlayer(code, socket.id);
 
-      if (updatedRoom) {
-        io.to(code).emit('room:updated', sanitizeRoom(updatedRoom));
-        // If voting was in progress and all remaining have voted, finalize
-        if (
-          updatedRoom.phase === 'voting' &&
-          Object.keys(updatedRoom.votes).length >= updatedRoom.players.length
-        ) {
-          finalizeResults(code, io);
-        }
-        // If discussion: check if all remaining now ready
-        if (updatedRoom.phase === 'discussion') {
-          const readyCount = Object.values(updatedRoom.discussionReady).filter(Boolean).length;
-          if (readyCount >= updatedRoom.players.length && updatedRoom.players.length > 0) {
-            updatedRoom.phase = 'voting';
-            updatedRoom.votes = {};
-            io.to(code).emit('game:votingStart', sanitizeRoom(updatedRoom));
-          }
+      if (!updatedRoom) {
+        // Room is empty and has been deleted — drop its timer too.
+        clearRoomTimer(code);
+        io.emit('rooms:updated', getPublicRooms().map(sanitizeRoom));
+        console.log(`[Socket] Disconnected: ${socket.id} (room ${code} closed)`);
+        return;
+      }
+
+      // Keep the word-phase turn order consistent with the shrunken lobby.
+      if (leaverTurnIndex !== -1) {
+        updatedRoom.turnOrder.splice(leaverTurnIndex, 1);
+        if (leaverTurnIndex < updatedRoom.turnIndex) updatedRoom.turnIndex--;
+      }
+
+      io.to(code).emit('room:updated', sanitizeRoom(updatedRoom));
+
+      if (wasActiveSpeaker) {
+        // Their turn dies with them; move on rather than burning 10s.
+        updatedRoom.turnIndex--;
+        nextTurn(updatedRoom, io);
+      } else if (updatedRoom.phase === 'words') {
+        broadcastTurnState(updatedRoom, io);
+      } else if (updatedRoom.phase === 'playing') {
+        broadcastReadyState(updatedRoom, io);
+        if (allReadyToAdvance(updatedRoom)) startWordPhase(updatedRoom, io);
+      } else if (updatedRoom.phase === 'deliberation') {
+        // Their vote leaves with them; the remaining players may now be done.
+        delete updatedRoom.votes[socket.id];
+        broadcastTally(updatedRoom, io);
+        if (pendingVoters(updatedRoom).length === 0) {
+          concludeVote(updatedRoom, io);
         }
       }
 
@@ -641,56 +682,55 @@ export function registerSocketHandlers(io: Server) {
   });
 }
 
-function finalizeResults(code: string, io: Server) {
-  const room = getRoom(code);
-  if (!room || room.phase === 'results') return;
+// ─── Results (section 9) ─────────────────────────────────────────────────────
 
+function finalizeResults(room: RoomState, io: Server, accusedId: string | null) {
+  if (room.phase === 'results') return;
+
+  clearRoomTimer(room.code);
   room.phase = 'results';
 
-  const mostVotedId = getMostVoted(room);
   const imposterIds = room.imposterIds;
-  const imposterId = room.imposterId;
-  const imposter = room.players.find((p) => p.id === imposterId);
-  const mostVotedPlayer = room.players.find((p) => p.id === mostVotedId);
-  const crewWins = imposterIds.length > 0 && imposterIds.includes(mostVotedId || '');
+  const imposter = room.players.find((p) => p.id === room.imposterId);
+  const accusedPlayer = room.players.find((p) => p.id === accusedId);
+  const crewWins = accusedId !== null && imposterIds.includes(accusedId);
 
-  // Calculate coin rewards
-  const BASE_COINS = 50;
-  const CREW_WIN_BONUS = 100;
-  const IMPOSTER_WIN_BONUS = 150;
+  const tally = getVoteTally(room);
 
-  io.to(code).emit('game:results', {
-    imposterId,
+  io.to(room.code).emit('game:results', {
+    imposterId: room.imposterId,
     imposterIds,
     imposterName: imposter?.name ?? 'Unknown',
     imposterAvatar: imposter?.avatar ?? '',
-    mostVotedId,
-    mostVotedName: mostVotedPlayer?.name ?? 'Nobody',
+    mostVotedId: accusedId,
+    mostVotedName: accusedPlayer?.name ?? 'Nobody',
     crewWins,
-    tally: getVoteTally(room),
-    players: room.players.map((p) => ({
-      id: p.id,
-      name: p.name,
-      avatar: p.avatar,
-      votes: Object.values(room.votes).filter((t) => t === p.id).length,
-      isImposter: imposterIds.includes(p.id),
-      // Per-player coin reward (calculated client-side based on role + outcome)
-      coinReward: {
-        baseCoins: BASE_COINS,
-        bonusCoins: imposterIds.includes(p.id)
-          ? (!crewWins ? IMPOSTER_WIN_BONUS : 0)
-          : (crewWins ? CREW_WIN_BONUS : 0),
-        total: BASE_COINS + (imposterIds.includes(p.id)
-          ? (!crewWins ? IMPOSTER_WIN_BONUS : 0)
-          : (crewWins ? CREW_WIN_BONUS : 0)),
-        reasons: [
-          'Participated in game',
-          ...(imposterIds.includes(p.id) && !crewWins ? ['Imposter victory bonus!'] : []),
-          ...(!imposterIds.includes(p.id) && crewWins ? ['Crew victory bonus!'] : []),
-        ],
-      },
-    })),
+    tally,
+    // Both videos are safe to reveal now that voting has closed.
+    normalVideoUrl: room.settings.normalVideoUrl,
+    imposterVideoUrl: room.settings.imposterVideoUrl,
+    players: room.players.map((p) => {
+      const isImposter = imposterIds.includes(p.id);
+      const won = isImposter ? !crewWins : crewWins;
+      const bonus = won ? (isImposter ? IMPOSTER_WIN_BONUS : CREW_WIN_BONUS) : 0;
+      return {
+        id: p.id,
+        name: p.name,
+        avatar: p.avatar,
+        votes: tally[p.id] ?? 0,
+        isImposter,
+        coinReward: {
+          baseCoins: BASE_COINS,
+          bonusCoins: bonus,
+          total: BASE_COINS + bonus,
+          reasons: [
+            'Played a round',
+            ...(won ? [isImposter ? 'Imposter victory bonus!' : 'Crew victory bonus!'] : []),
+          ],
+        },
+      };
+    }),
   });
 
-  console.log(`[Game] Results in ${code}: ${crewWins ? 'Crew' : 'Imposter'} wins`);
+  console.log(`[Game] Results in ${room.code}: ${crewWins ? 'Crew' : 'Imposter'} wins`);
 }

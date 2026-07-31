@@ -1,7 +1,13 @@
 // src/types/index.ts
 // Shared types used across frontend and backend
 
-export type GamePhase = 'lobby' | 'playing' | 'discussion' | 'voting' | 'results';
+// Phase flow per docs/BUILD-PLAN.md sections 6-8:
+//   playing      video + Ready Check
+//   words        turn-based word phase, 10s each
+//   deliberation ONE 90s window, chat and voting live simultaneously
+export type GamePhase = 'lobby' | 'playing' | 'words' | 'deliberation' | 'results';
+
+export type ChatType = 'text' | 'voice' | 'video' | 'none';
 
 export interface PlayerPublic {
   id: string;
@@ -24,15 +30,18 @@ export interface RoomPublic {
     hasImposterVideo: boolean;
     wordsPerPlayer: number;
     imposterCount: number;
-    chatType: 'text' | 'voice' | 'video';
+    chatType: ChatType;
     videoCategory: string | null;
   };
   votes: Record<string, string>;
   createdAt: number;
 }
 
+// Spec section 3: role is hidden from the player for the whole round —
+// there is deliberately no `isImposter` here. A client that knows its own
+// role can read it out of devtools, which defeats the core mechanic. The
+// role is only ever revealed in GameResults, after voting closes.
 export interface GameAssignment {
-  isImposter: boolean;
   videoUrl: string;
 }
 
@@ -51,13 +60,17 @@ export interface GameResults {
   mostVotedName: string;
   crewWins: boolean;
   tally: Record<string, number>;
+  // Safe to send only now that voting has closed — compare the two tapes.
+  normalVideoUrl: string;
+  imposterVideoUrl: string;
   players: {
     id: string;
     name: string;
     avatar: string;
     votes: number;
+    isImposter: boolean;
+    coinReward: CoinReward;
   }[];
-  coinReward: CoinReward;
 }
 
 export interface CoinReward {
@@ -76,7 +89,8 @@ export interface ChatMessage {
   isWord?: boolean;  // true if this is a restricted single-word message
 }
 
-export interface DiscussionWord {
+/** A word submitted during the turn-based word phase (section 7). */
+export interface GameWord {
   playerId: string;
   playerName: string;
   avatar: string;
@@ -85,13 +99,32 @@ export interface DiscussionWord {
   timestamp: number;
 }
 
-export interface DiscussionState {
-  words: DiscussionWord[];
-  chatMessages: ChatMessage[];
-  isOpen: boolean;                            // free chat unlocked
-  wordsUsed: Record<string, number>;          // playerId -> words used
-  readyPlayers: Record<string, boolean>;      // playerId -> ready to vote
-  wordsPerPlayer: number;
+/** Ready Check progress while the video phase winds down (section 6). */
+export interface ReadyState {
+  videoEnded: Record<string, boolean>;
+  readyToAdvance: Record<string, boolean>;
+  ready: number;
+  total: number;
+  /** Epoch ms the 10s post-imposter grace expires, or null before it starts. */
+  graceEndsAt: number | null;
+}
+
+/** Live turn state during the word phase (section 7). */
+export interface TurnState {
+  activePlayerId: string | null;
+  turnTimeLeft: number;
+  turnIndex: number;
+  wordsUsed: Record<string, number>;
+}
+
+/** The single 90s chat+vote window (section 8). */
+export interface DeliberationState {
+  endsAt: number;
+  durationSeconds: number;
+  voteRound: number;
+  /** Non-null while a tie is being re-voted; ballot is restricted to these. */
+  revoteCandidates: string[] | null;
+  eligibleVoters: string[] | null;
 }
 
 export interface Preset {

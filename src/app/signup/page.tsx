@@ -1,19 +1,21 @@
 'use client';
 // src/app/signup/page.tsx
+// Account creation, styled on the identity modal in
+// vhs-frontend-example/home.html.
 
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-
-const AVATARS = ['🎮', '👾', '🕵️', '🎭', '🦊', '🐺', '🦁', '🐸', '🤖', '👽', '🧙', '🦄', '🐙', '🦋', '🐲', '🌙'];
+import { AVATARS } from '@/lib/avatars';
+import { CrtShell } from '@/components/vhs/CrtShell';
 
 export default function SignupPage() {
   const router = useRouter();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [selectedAvatar, setSelectedAvatar] = useState(AVATARS[0]);
+  const [selectedAvatar, setSelectedAvatar] = useState<string>(AVATARS[0]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -26,132 +28,140 @@ export default function SignupPage() {
       const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password }),
+        // The server vets `avatar` against the allowed set before storing it.
+        body: JSON.stringify({ name, email, password, avatar: selectedAvatar }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || 'Signup failed');
+        setError((data.error || 'SIGNUP FAILED').toUpperCase());
         setLoading(false);
         return;
       }
 
-      // Auto sign in after signup
       await signIn('credentials', { email, password, redirect: false });
       router.push('/dashboard');
     } catch {
-      setError('Something went wrong');
+      setError('SOMETHING WENT WRONG');
       setLoading(false);
     }
   }
 
   return (
-    <div className="min-h-dvh flex items-center justify-center grid-bg px-4 py-8">
-      <div className="w-full max-w-md animate-scale-in">
-        <div className="text-center mb-8">
-          <Link href="/" className="text-3xl font-black gradient-text">IMPOSTER</Link>
-          <p className="text-zinc-400 mt-2">Create your account</p>
-        </div>
+    <CrtShell home badge="SIGN UP" badgeColor="var(--neon-green)">
+      <div style={{ display: 'grid', placeItems: 'center', flex: 1, padding: 20 }}>
+        <div className="modal-card" style={{ maxWidth: 460 }}>
+          <h2 className="brutal-title modal-title">📼 FORMAT NEW PROFILE</h2>
+          <p className="modal-subtitle">CHOOSE A CHARACTER AND A NICKNAME</p>
 
-        <div className="glass rounded-2xl p-8">
           {error && (
-            <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 mb-6 text-rose-300 text-sm">
-              {error}
+            <div className="word-phase-banner" style={{ display: 'block', margin: '12px 0' }}>
+              ⛔ {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5" id="signup-form">
-            {/* Avatar picker */}
-            <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-3">
-                Choose your avatar
-              </label>
-              <div className="grid grid-cols-8 gap-2">
-                {AVATARS.map((avatar) => (
-                  <button
-                    key={avatar}
-                    type="button"
-                    id={`avatar-${avatar}`}
-                    onClick={() => setSelectedAvatar(avatar)}
-                    className={`w-10 h-10 rounded-xl text-xl flex items-center justify-center transition-all
-                      ${selectedAvatar === avatar
-                        ? 'bg-violet-600 ring-2 ring-violet-400 scale-110'
-                        : 'bg-bg-700 hover:bg-bg-600'
-                      }`}
-                  >
-                    {avatar}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-2" htmlFor="signup-name">
-                Display Name
-              </label>
-              <input
-                id="signup-name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="input-field"
-                placeholder="CoolPlayer99"
-                required
-                minLength={2}
-                maxLength={20}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-2" htmlFor="signup-email">
-                Email
-              </label>
-              <input
-                id="signup-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="input-field"
-                placeholder="you@example.com"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-2" htmlFor="signup-password">
-                Password
-              </label>
-              <input
-                id="signup-password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="input-field"
-                placeholder="At least 6 characters"
-                required
-                minLength={6}
-              />
-            </div>
-
-            <button
-              id="signup-submit-btn"
-              type="submit"
-              className="btn-primary w-full btn-lg"
-              disabled={loading}
+          <form onSubmit={handleSubmit} id="signup-form">
+            <label className="brutal-label">CHARACTER:</label>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(8, 1fr)',
+                gap: 6,
+                margin: '6px 0 12px',
+              }}
             >
-              {loading ? 'Creating account...' : '🎮 Create Account'}
-            </button>
+              {AVATARS.map((avatar) => (
+                <button
+                  key={avatar}
+                  type="button"
+                  id={`avatar-${avatar}`}
+                  onClick={() => setSelectedAvatar(avatar)}
+                  aria-pressed={selectedAvatar === avatar}
+                  style={{
+                    aspectRatio: '1',
+                    fontSize: '1.2rem',
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    border: '2px solid #000',
+                    background:
+                      selectedAvatar === avatar ? 'var(--neon-cyan)' : 'rgba(255,255,255,0.08)',
+                    boxShadow: selectedAvatar === avatar ? '2px 2px 0px #000' : 'none',
+                    transform: selectedAvatar === avatar ? 'scale(1.08)' : 'none',
+                    transition: 'all 0.1s ease',
+                  }}
+                >
+                  {avatar}
+                </button>
+              ))}
+            </div>
+
+            <label className="brutal-label" htmlFor="signup-name">
+              NICKNAME:
+            </label>
+            <input
+              id="signup-name"
+              type="text"
+              className="brutal-input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="CoolNickname2774"
+              required
+              minLength={2}
+              maxLength={20}
+            />
+
+            <label className="brutal-label" style={{ marginTop: 10 }} htmlFor="signup-email">
+              EMAIL:
+            </label>
+            <input
+              id="signup-email"
+              type="email"
+              className="brutal-input"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              required
+            />
+
+            <label className="brutal-label" style={{ marginTop: 10 }} htmlFor="signup-password">
+              PASSWORD:
+            </label>
+            <input
+              id="signup-password"
+              type="password"
+              className="brutal-input"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="At least 6 characters"
+              required
+              minLength={6}
+            />
+
+            <div className="modal-actions">
+              <button
+                id="signup-submit-btn"
+                type="submit"
+                className="btn-brutal green large-brutal-btn"
+                disabled={loading}
+              >
+                {loading ? 'FORMATTING…' : 'START PLAYING ⏵'}
+              </button>
+            </div>
           </form>
 
-          <p className="text-center text-zinc-500 text-sm mt-6">
-            Already have an account?{' '}
-            <Link href="/login" className="text-violet-400 hover:text-violet-300 font-medium">
-              Sign in
+          <p className="osd-text" style={{ textAlign: 'center', color: '#aaa', marginTop: 14 }}>
+            ALREADY HAVE A TAPE?{' '}
+            <Link href="/login" style={{ color: 'var(--neon-cyan)' }}>
+              SIGN IN
+            </Link>
+            {' · '}
+            <Link href="/" style={{ color: '#888' }}>
+              HOME
             </Link>
           </p>
         </div>
       </div>
-    </div>
+    </CrtShell>
   );
 }

@@ -1,9 +1,12 @@
 // src/hooks/useRoom.ts
-// Room state machine — subscribes to all socket events for a room
+// Room state machine — subscribes to every socket event for a room.
+//
+// Adding an event means three edits: the handler here, the matching
+// socket.off in the cleanup, and (if clients trigger it) an action below.
 
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { getSocket } from '@/lib/socket';
 import {
   RoomPublic,
@@ -12,35 +15,27 @@ import {
   GameResults,
   ChatMessage,
   GamePhase,
-  DiscussionWord,
+  GameWord,
+  ReadyState,
+  TurnState,
+  DeliberationState,
+  ChatType,
 } from '@/types';
-
-export interface DiscussionStatus {
-  wordsUsed: Record<string, number>;
-  readyPlayers: Record<string, boolean>;
-  isOpen: boolean;
-  wordsPerPlayer: number;
-  activePlayerId?: string | null;
-  turnTimeLeft?: number;
-}
-
-export interface DiscussionReadyCount {
-  ready: number;
-  total: number;
-  readyPlayers: Record<string, boolean>;
-}
 
 export interface RoomState {
   room: RoomPublic | null;
   phase: GamePhase;
   assignment: GameAssignment | null;
-  readyCount: { ready: number; total: number } | null;
+  /** Video-loaded progress, gates the synchronized play start. */
+  loadedCount: { ready: number; total: number } | null;
+  readyState: ReadyState | null;
+  turnState: TurnState | null;
+  words: GameWord[];
+  deliberation: DeliberationState | null;
+  secondsLeft: number | null;
   voteTally: VoteTally | null;
   results: GameResults | null;
   chatMessages: ChatMessage[];
-  discussionWords: DiscussionWord[];
-  discussionStatus: DiscussionStatus | null;
-  discussionReadyCount: DiscussionReadyCount | null;
   error: string | null;
   isKicked: boolean;
 }
@@ -49,13 +44,15 @@ const initialState: RoomState = {
   room: null,
   phase: 'lobby',
   assignment: null,
-  readyCount: null,
+  loadedCount: null,
+  readyState: null,
+  turnState: null,
+  words: [],
+  deliberation: null,
+  secondsLeft: null,
   voteTally: null,
   results: null,
   chatMessages: [],
-  discussionWords: [],
-  discussionStatus: null,
-  discussionReadyCount: null,
   error: null,
   isKicked: false,
 };
@@ -75,22 +72,79 @@ export function useRoom(code: string | null) {
       setState((prev) => ({ ...prev, assignment }));
     };
 
-    const handleReadyCount = (data: { ready: number; total: number }) => {
-      setState((prev) => ({ ...prev, readyCount: data }));
+    const handleLoadedCount = (data: { ready: number; total: number }) => {
+      setState((prev) => ({ ...prev, loadedCount: data }));
     };
 
-    const handlePlay = (_data: { playAt: number }) => {
-      // The video player component listens to this event directly
+    const handleReadyState = (data: ReadyState) => {
+      setState((prev) => ({ ...prev, readyState: data }));
     };
 
-    const handleVotingStart = (room: RoomPublic) => {
+    const handleWordPhaseStart = (data: RoomPublic & TurnState) => {
       setState((prev) => ({
         ...prev,
-        room,
-        phase: 'voting',
+        room: data,
+        phase: 'words',
+        words: [],
+        chatMessages: [],
+        turnState: {
+          activePlayerId: data.activePlayerId,
+          turnTimeLeft: data.turnTimeLeft,
+          turnIndex: 0,
+          wordsUsed: {},
+        },
+      }));
+    };
+
+    const handleTurnState = (data: TurnState) => {
+      setState((prev) => ({ ...prev, turnState: data }));
+    };
+
+    const handleWord = (word: GameWord) => {
+      setState((prev) => ({ ...prev, words: [...prev.words, word] }));
+    };
+
+    const handleDeliberationStart = (
+      data: RoomPublic & { endsAt: number; durationSeconds: number; voteRound: number; revoteCandidates: string[] | null }
+    ) => {
+      setState((prev) => ({
+        ...prev,
+        room: data,
+        phase: 'deliberation',
         voteTally: null,
-        discussionStatus: null,
-        discussionReadyCount: null,
+        secondsLeft: data.durationSeconds,
+        deliberation: {
+          endsAt: data.endsAt,
+          durationSeconds: data.durationSeconds,
+          voteRound: data.voteRound,
+          revoteCandidates: data.revoteCandidates,
+          eligibleVoters: null,
+        },
+      }));
+    };
+
+    const handleTick = (data: { secondsLeft: number }) => {
+      setState((prev) => ({ ...prev, secondsLeft: data.secondsLeft }));
+    };
+
+    const handleRevote = (data: {
+      candidates: string[];
+      eligibleVoters: string[];
+      voteRound: number;
+      endsAt: number;
+      durationSeconds: number;
+      tally: Record<string, number>;
+    }) => {
+      setState((prev) => ({
+        ...prev,
+        secondsLeft: data.durationSeconds,
+        deliberation: {
+          endsAt: data.endsAt,
+          durationSeconds: data.durationSeconds,
+          voteRound: data.voteRound,
+          revoteCandidates: data.candidates,
+          eligibleVoters: data.eligibleVoters,
+        },
       }));
     };
 
@@ -117,82 +171,38 @@ export function useRoom(code: string | null) {
       }));
     };
 
-    // ─── Discussion phase events ─────────────────────────────────────
-    const handleDiscussionStart = (data: any) => {
-      setState((prev) => ({
-        ...prev,
-        room: data,
-        phase: 'discussion',
-        discussionWords: [],
-        chatMessages: [],
-        discussionStatus: {
-          wordsUsed: data.wordsUsed || {},
-          readyPlayers: data.readyPlayers || {},
-          isOpen: data.isOpen || false,
-          wordsPerPlayer: data.wordsPerPlayer || 1,
-          activePlayerId: data.activePlayerId || null,
-          turnTimeLeft: data.turnTimeLeft || 0,
-        },
-        discussionReadyCount: null,
-      }));
-    };
-
-    const handleDiscussionWord = (word: DiscussionWord) => {
-      setState((prev) => ({
-        ...prev,
-        discussionWords: [...prev.discussionWords, word],
-      }));
-    };
-
-    const handleDiscussionStatus = (status: DiscussionStatus) => {
-      setState((prev) => ({ ...prev, discussionStatus: status }));
-    };
-
-    const handleDiscussionOpen = () => {
-      setState((prev) => ({
-        ...prev,
-        discussionStatus: prev.discussionStatus
-          ? { ...prev.discussionStatus, isOpen: true }
-          : null,
-      }));
-    };
-
-    const handleDiscussionReadyCount = (data: DiscussionReadyCount) => {
-      setState((prev) => ({ ...prev, discussionReadyCount: data }));
-    };
-
     socket.on('room:updated', handleRoomUpdated);
     socket.on('game:assigned', handleAssigned);
-    socket.on('game:readyCount', handleReadyCount);
-    socket.on('game:play', handlePlay);
-    socket.on('game:votingStart', handleVotingStart);
+    socket.on('game:readyCount', handleLoadedCount);
+    socket.on('game:readyState', handleReadyState);
+    socket.on('game:wordPhaseStart', handleWordPhaseStart);
+    socket.on('game:turnState', handleTurnState);
+    socket.on('game:word', handleWord);
+    socket.on('game:deliberationStart', handleDeliberationStart);
+    socket.on('game:deliberationTick', handleTick);
+    socket.on('game:revote', handleRevote);
     socket.on('vote:tally', handleVoteTally);
     socket.on('game:results', handleResults);
     socket.on('room:kicked', handleKicked);
     socket.on('game:error', handleError);
     socket.on('room:chatMessage', handleChatMessage);
-    socket.on('game:discussionStart', handleDiscussionStart);
-    socket.on('game:discussionWord', handleDiscussionWord);
-    socket.on('game:discussionStatus', handleDiscussionStatus);
-    socket.on('game:discussionOpen', handleDiscussionOpen);
-    socket.on('game:discussionReadyCount', handleDiscussionReadyCount);
 
     return () => {
       socket.off('room:updated', handleRoomUpdated);
       socket.off('game:assigned', handleAssigned);
-      socket.off('game:readyCount', handleReadyCount);
-      socket.off('game:play', handlePlay);
-      socket.off('game:votingStart', handleVotingStart);
+      socket.off('game:readyCount', handleLoadedCount);
+      socket.off('game:readyState', handleReadyState);
+      socket.off('game:wordPhaseStart', handleWordPhaseStart);
+      socket.off('game:turnState', handleTurnState);
+      socket.off('game:word', handleWord);
+      socket.off('game:deliberationStart', handleDeliberationStart);
+      socket.off('game:deliberationTick', handleTick);
+      socket.off('game:revote', handleRevote);
       socket.off('vote:tally', handleVoteTally);
       socket.off('game:results', handleResults);
       socket.off('room:kicked', handleKicked);
       socket.off('game:error', handleError);
       socket.off('room:chatMessage', handleChatMessage);
-      socket.off('game:discussionStart', handleDiscussionStart);
-      socket.off('game:discussionWord', handleDiscussionWord);
-      socket.off('game:discussionStatus', handleDiscussionStatus);
-      socket.off('game:discussionOpen', handleDiscussionOpen);
-      socket.off('game:discussionReadyCount', handleDiscussionReadyCount);
     };
   }, [code, socket]);
 
@@ -229,17 +239,16 @@ export function useRoom(code: string | null) {
         isPublic: boolean;
         normalVideoUrl?: string;
         imposterVideoUrl?: string;
+        chatType?: ChatType;
+        videoCategory?: string | null;
       }) => {
         return new Promise<string>((resolve, reject) => {
           socket.emit(
             'room:create',
             data,
             (res: { success: boolean; code?: string; error?: string }) => {
-              if (res.success && res.code) {
-                resolve(res.code);
-              } else {
-                reject(new Error(res.error || 'Failed to create room'));
-              }
+              if (res.success && res.code) resolve(res.code);
+              else reject(new Error(res.error || 'Failed to create room'));
             }
           );
         });
@@ -248,13 +257,17 @@ export function useRoom(code: string | null) {
     ),
 
     updateSettings: useCallback(
-      (code: string, settings: {
-        isPublic?: boolean;
-        normalVideoUrl?: string;
-        imposterVideoUrl?: string;
-        wordsPerPlayer?: number;
-        imposterCount?: number;
-      }) => {
+      (
+        code: string,
+        settings: {
+          isPublic?: boolean;
+          normalVideoUrl?: string;
+          imposterVideoUrl?: string;
+          wordsPerPlayer?: number;
+          chatType?: ChatType;
+          videoCategory?: string | null;
+        }
+      ) => {
         socket.emit('room:updateSettings', { code, ...settings });
       },
       [socket]
@@ -268,30 +281,40 @@ export function useRoom(code: string | null) {
     ),
 
     startGame: useCallback(
-      (code: string) => {
-        socket.emit('game:start', { code });
-      },
+      (code: string) => socket.emit('game:start', { code }),
       [socket]
     ),
 
-    signalReady: useCallback(
-      (code: string) => {
-        socket.emit('game:syncReady', { code });
-      },
+    /** Video element has buffered and is ready to play. */
+    signalLoaded: useCallback(
+      (code: string) => socket.emit('game:syncReady', { code }),
       [socket]
     ),
 
-    forceEnd: useCallback(
-      (code: string) => {
-        socket.emit('game:forceEnd', { code });
-      },
-      [socket]
-    ),
-
+    /** This player's video reached its end (section 6). */
     videoEnded: useCallback(
-      (code: string) => {
-        socket.emit('game:videoEnded', { code });
-      },
+      (code: string) => socket.emit('game:videoEnded', { code }),
+      [socket]
+    ),
+
+    /** This player clicked Ready after their video ended (section 6). */
+    readyToAdvance: useCallback(
+      (code: string) => socket.emit('game:readyToAdvance', { code }),
+      [socket]
+    ),
+
+    submitWord: useCallback(
+      (code: string, word: string) => socket.emit('game:word', { code, word }),
+      [socket]
+    ),
+
+    sendChat: useCallback(
+      (code: string, message: string) => socket.emit('game:chat', { code, message }),
+      [socket]
+    ),
+
+    sendLobbyChat: useCallback(
+      (code: string, message: string) => socket.emit('room:chat', { code, message }),
       [socket]
     ),
 
@@ -311,39 +334,8 @@ export function useRoom(code: string | null) {
       [socket]
     ),
 
-    sendChat: useCallback(
-      (code: string, message: string) => {
-        socket.emit('room:chat', { code, message });
-      },
-      [socket]
-    ),
-
-    // ─── Discussion actions ──────────────────────────────────────────
-    sendDiscussionWord: useCallback(
-      (code: string, word: string) => {
-        socket.emit('game:discussionWord', { code, word });
-      },
-      [socket]
-    ),
-
-    sendDiscussionChat: useCallback(
-      (code: string, message: string) => {
-        socket.emit('game:discussionChat', { code, message });
-      },
-      [socket]
-    ),
-
-    signalDiscussionReady: useCallback(
-      (code: string) => {
-        socket.emit('game:discussionReady', { code });
-      },
-      [socket]
-    ),
-
     backToLobby: useCallback(
-      (code: string) => {
-        socket.emit('game:backToLobby', { code });
-      },
+      (code: string) => socket.emit('game:backToLobby', { code }),
       [socket]
     ),
 
@@ -354,3 +346,5 @@ export function useRoom(code: string | null) {
 
   return { state, actions };
 }
+
+export type RoomActions = ReturnType<typeof useRoom>['actions'];

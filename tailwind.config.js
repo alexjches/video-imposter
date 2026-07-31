@@ -8,10 +8,26 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Space Grotesk', 'sans-serif'],
+        // VHS design system (spec section 21) — matches vhs.css custom props
+        brutal: ['Lilita One', 'cursive', 'sans-serif'],
+        osd: ['Share Tech Mono', 'monospace'],
+        marker: ['Permanent Marker', 'cursive', 'sans-serif'],
+        sans: ['Outfit', 'sans-serif'],
+        // Legacy — remove with the legacy block in globals.css
         mono: ['JetBrains Mono', 'monospace'],
       },
       colors: {
+        // ── VHS palette (spec section 21) ──
+        vhs: {
+          bg: '#120826',
+          darker: '#080312',
+          yellow: '#ffee00',
+          'yellow-active': '#d6c700',
+          magenta: '#ff0077',
+          cyan: '#00f0ff',
+          green: '#00ff66',
+        },
+        // ── Legacy palette below — do not use for new work ──
         // Base dark backgrounds
         bg: {
           950: '#0a0a0f',

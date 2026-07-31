@@ -1,9 +1,15 @@
 'use client';
 // src/components/results/ResultsScreen.tsx
-// Dramatic reveal + win/lose screen with confetti + coin rewards
+// Section 8 reveal. Layout mirrors #view-results in
+// vhs-frontend-example/index.html — the accused's cassette ejects from the
+// deck, then the outcome, payout and the two tapes are compared.
+//
+// This is the FIRST payload that carries roles (see GameResults), so it is
+// also the first screen allowed to render who the imposter was.
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { GameResults } from '@/types';
+import type { RoomActions } from '@/hooks/useRoom';
 import { useRouter } from 'next/navigation';
 import { useShop } from '@/hooks/useShop';
 
@@ -11,61 +17,77 @@ interface Props {
   results: GameResults;
   socketId: string;
   isHost: boolean;
-  actions: any;
+  actions: RoomActions;
   code: string;
+}
+
+/** Strip a video URL down to something readable on a cassette label. */
+function tapeLabel(url: string): string {
+  if (!url) return 'UNKNOWN.VHS';
+  try {
+    const u = new URL(url);
+    const id = u.searchParams.get('v') || u.pathname.split('/').filter(Boolean).pop();
+    return `${(id || u.hostname).toUpperCase()}.VHS`;
+  } catch {
+    return `${url.slice(0, 32).toUpperCase()}.VHS`;
+  }
 }
 
 export function ResultsScreen({ results, socketId, isHost, actions, code }: Props) {
   const router = useRouter();
   const { addCoins } = useShop();
-  const [revealed, setRevealed] = useState(false);
+  const [ejected, setEjected] = useState(false);
   const [showWinner, setShowWinner] = useState(false);
   const [showCoins, setShowCoins] = useState(false);
   const [coinCount, setCoinCount] = useState(0);
-  const confettiContainer = useRef<HTMLDivElement>(null);
   const coinsAdded = useRef(false);
 
-  // Find my player's result
+  // Coin rewards are per-player (section 9) — the imposter and the crew are
+  // paid differently for the same outcome.
   const myPlayer = results.players.find((p) => p.id === socketId);
-  const myCoinReward = (results as any).players?.find((p: any) => p.id === socketId)?.coinReward
-    ?? results.coinReward;
+  const myCoinReward = myPlayer?.coinReward;
 
-  const isImposter = results.imposterIds?.includes(socketId) ?? socketId === results.imposterId;
+  const imposterIds = results.imposterIds ?? [results.imposterId];
+  const imposterPlayers = results.players.filter((p) => imposterIds.includes(p.id));
+  const isImposter = imposterIds.includes(socketId);
   const crewWins = results.crewWins;
-  const iWon = (isImposter && !crewWins) || (!isImposter && crewWins);
+  const iWon = isImposter !== crewWins;
 
-  // Reveal sequence
+  // Reveal sequence: eject the tape, then the verdict, then the payout.
   useEffect(() => {
-    const t1 = setTimeout(() => setRevealed(true), 1200);
+    const t1 = setTimeout(() => setEjected(true), 1200);
     const t2 = setTimeout(() => {
       setShowWinner(true);
       if (crewWins) launchConfetti();
     }, 3000);
     const t3 = setTimeout(() => setShowCoins(true), 4200);
-
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
   }, [crewWins]);
 
-  // Award coins once
+  // Award coins once, counting up as they land.
   useEffect(() => {
-    if (showCoins && !coinsAdded.current && myCoinReward) {
-      coinsAdded.current = true;
-      // Animate coin counter
-      const target = myCoinReward.total ?? 0;
-      let current = 0;
-      const step = Math.ceil(target / 40);
-      const interval = setInterval(() => {
-        current = Math.min(current + step, target);
-        setCoinCount(current);
-        if (current >= target) clearInterval(interval);
-      }, 30);
-      // Add to wallet
-      addCoins(target);
-    }
+    if (!showCoins || coinsAdded.current || !myCoinReward) return;
+    coinsAdded.current = true;
+
+    const target = myCoinReward.total ?? 0;
+    let current = 0;
+    const step = Math.max(1, Math.ceil(target / 40));
+    const interval = setInterval(() => {
+      current = Math.min(current + step, target);
+      setCoinCount(current);
+      if (current >= target) clearInterval(interval);
+    }, 30);
+    addCoins(target);
+
+    return () => clearInterval(interval);
   }, [showCoins, myCoinReward, addCoins]);
 
   function launchConfetti() {
-    const colors = ['#8b5cf6', '#10b981', '#f43f5e', '#fbbf24', '#38bdf8'];
+    const colors = ['#00f0ff', '#ff00c8', '#ffee00', '#00ff88', '#ff7700'];
     for (let i = 0; i < 120; i++) {
       setTimeout(() => {
         const el = document.createElement('div');
@@ -82,163 +104,243 @@ export function ResultsScreen({ results, socketId, isHost, actions, code }: Prop
     }
   }
 
-  // Show all imposters (multi-imposter support)
-  const imposterIds = results.imposterIds ?? [results.imposterId];
-  const imposterPlayers = results.players.filter((p) => imposterIds.includes(p.id));
+  const accusedName = results.mostVotedName || 'NOBODY';
+  const bannerColor = crewWins ? 'var(--neon-green)' : 'var(--neon-magenta)';
+
+  // Rank without mutating the payload we were handed.
+  const ranked = [...results.players].sort((a, b) => b.votes - a.votes);
+  const maxVotes = Math.max(1, ...ranked.map((p) => p.votes));
 
   return (
-    <div className="min-h-dvh grid-bg flex flex-col items-center justify-center px-6 py-10">
-      <div ref={confettiContainer} />
-
-      {/* Phase label */}
-      <p className="text-xs uppercase tracking-widest text-zinc-500 mb-6">Results</p>
-
-      {/* Imposter Card Flip */}
-      <div className="flip-container w-56 h-72 mb-8 relative">
-        <div className={`flip-card w-full h-full ${revealed ? 'flipped' : ''}`}>
-          {/* Front face — mystery */}
-          <div className="flip-front glass rounded-2xl flex flex-col items-center justify-center">
-            <div className="text-6xl animate-pulse-slow">❓</div>
-            <p className="text-zinc-400 mt-4 font-semibold">
-              The Imposter{imposterIds.length > 1 ? 's were' : ' was'}…
-            </p>
-          </div>
-          {/* Back face — reveal */}
-          <div className={`flip-back rounded-2xl flex flex-col items-center justify-center gap-2
-            ${crewWins ? 'bg-rose-900/80 border border-rose-500/50' : 'bg-violet-900/80 border border-violet-500/50'}`}>
-            {imposterPlayers.length > 0 ? (
-              imposterPlayers.map((imp) => (
-                <div key={imp.id} className="text-center">
-                  <div className="text-4xl mb-1">{imp.avatar || '👁️'}</div>
-                  <p className="text-base font-bold text-white">{imp.name}</p>
-                </div>
-              ))
-            ) : (
-              <div className="text-center">
-                <div className="text-6xl mb-2">{results.imposterAvatar || '👁️'}</div>
-                <p className="text-lg font-bold text-white">{results.imposterName}</p>
-              </div>
-            )}
-            <p className="text-sm text-zinc-400 mt-1">
-              {imposterIds.length > 1 ? 'were the Imposters' : 'was the Imposter'}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Winner Banner */}
-      {showWinner && (
-        <div className={`text-center animate-bounce-in mb-6 ${crewWins ? 'neon-emerald' : 'neon-rose'} rounded-2xl px-10 py-6 glass`}>
-          <div className="text-5xl mb-2">
-            {crewWins ? '🚀' : '👁️'}
-          </div>
-          <h2 className={`text-4xl font-black ${crewWins ? 'text-emerald-300 neon-text-emerald' : 'text-rose-300 neon-text-rose'}`}>
-            {crewWins ? 'CREW WINS!' : 'IMPOSTER WINS!'}
+    <div className="view-panel active-view">
+      <div className="results-container">
+        <div>
+          <h2 className="brutal-title results-banner" style={{ color: bannerColor }}>
+            TAPE EJECTED
           </h2>
-          <p className="text-zinc-400 mt-2 text-sm">
-            {crewWins
-              ? `The crew correctly identified ${results.imposterName}!`
-              : `${results.imposterName} fooled everyone!`}
-          </p>
-          <p className={`mt-4 font-bold text-lg ${iWon ? 'text-emerald-300' : 'text-rose-300'}`}>
-            {isImposter
-              ? crewWins ? '😅 You lost!' : '😈 You won!'
-              : crewWins ? '🎉 You won!' : '😞 You lost!'}
+          <p className="osd-text" style={{ color: '#aaa' }}>
+            Votes tallied — the deck is spitting out {accusedName}…
           </p>
         </div>
-      )}
 
-      {/* Coin Reward */}
-      {showCoins && myCoinReward && (
-        <div className="w-full max-w-md glass rounded-2xl p-5 mb-6 animate-slide-up border border-amber-500/20">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold text-zinc-300 flex items-center gap-2">
-              <span className="text-xl">🪙</span> Coins Earned
-            </h3>
-            <span className="text-2xl font-black text-amber-300 tabular-nums">
-              +{coinCount}
-            </span>
-          </div>
-          <div className="space-y-1.5 text-sm">
-            {myCoinReward.baseCoins > 0 && (
-              <div className="flex justify-between text-zinc-400">
-                <span>Participation</span>
-                <span className="text-amber-400">+{myCoinReward.baseCoins} 🪙</span>
+        {/* Cassette eject: the accused player's tape leaves the deck. */}
+        <div className={`vcr-deck${ejected ? ' ejected' : ''}`}>
+          <div className="vcr-slot">
+            <div className="vcr-door">EJECTING TAPE</div>
+            <div className="ejected-tape">
+              <div
+                className={`vhs-tape${ejected ? ' imposter-selected' : ''}`}
+                style={{ transform: 'scale(0.65)', pointerEvents: 'none', marginTop: -30 }}
+              >
+                <div
+                  className="tape-tag"
+                  style={{ backgroundColor: 'var(--neon-magenta)', color: '#fff' }}
+                >
+                  {crewWins ? 'SUSPECT-X' : 'INNOCENT'}
+                </div>
+                <div className="tape-label">
+                  <div
+                    className="tape-title"
+                    style={{ fontSize: '1.1rem', color: ejected ? '#8a0060' : '#1e1e24' }}
+                  >
+                    {ejected ? accusedName : '???'}
+                  </div>
+                  <div className="tape-sublabel">
+                    <span>{ejected ? (crewWins ? 'SUSPECT' : 'CREWMATE') : 'UNKNOWN'}</span>
+                    <span>● EJECT</span>
+                  </div>
+                </div>
+                <div className="tape-window-panel">
+                  <div className="spool">
+                    <div className="spool-gear" />
+                  </div>
+                  <div className="spool">
+                    <div className="spool-gear" />
+                  </div>
+                </div>
               </div>
-            )}
-            {myCoinReward.bonusCoins > 0 && (
-              <div className="flex justify-between text-emerald-400 font-medium">
-                <span>
-                  {isImposter && !crewWins ? '👁️ Imposter victory bonus' : '🚀 Crew victory bonus'}
-                </span>
-                <span>+{myCoinReward.bonusCoins} 🪙</span>
-              </div>
-            )}
-            <div className="h-px bg-zinc-700 my-1" />
-            <div className="flex justify-between text-white font-bold">
-              <span>Total</span>
-              <span className="text-amber-300">+{myCoinReward.total} 🪙</span>
             </div>
           </div>
         </div>
-      )}
 
-      {/* Final Vote Tally */}
-      {showWinner && (
-        <div className="w-full max-w-md glass rounded-2xl p-6 mb-8 animate-slide-up">
-          <h3 className="font-bold text-zinc-300 mb-4 text-center">Final Vote Count</h3>
-          <div className="space-y-3">
-            {results.players
-              .sort((a, b) => b.votes - a.votes)
-              .map((player) => (
-                <div key={player.id} className="flex items-center gap-3">
-                  <span className="text-xl">{player.avatar}</span>
-                  <span className={`text-sm font-medium flex-1 ${
-                    imposterIds.includes(player.id) ? 'text-rose-300' : 'text-zinc-300'
-                  }`}>
-                    {player.name}
-                    {imposterIds.includes(player.id) && ' 👁️'}
-                  </span>
-                  <div className="flex gap-1">
-                    {Array.from({ length: player.votes }).map((_, i) => (
-                      <div key={i} className="w-2 h-5 bg-rose-500 rounded-sm" />
-                    ))}
-                  </div>
-                  <span className="text-sm text-zinc-400 w-4 text-right">{player.votes}</span>
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
-
-      {/* Actions */}
-      {showWinner && (
-        <div className="flex gap-4 animate-fade-in">
-          {isHost && (
-            <button
-              id="play-again-btn"
-              onClick={() => actions.backToLobby(code)}
-              className="btn-primary"
+        {/* ── Verdict ─────────────────────────────────────────────── */}
+        {showWinner && (
+          <div className="brutal-card yellow" style={{ width: '100%', color: '#000' }}>
+            <h3
+              className="brutal-title"
+              style={{ fontSize: '1.5rem', color: '#000', textShadow: 'none', marginBottom: 10 }}
             >
-              🔄 Play Again
+              {crewWins ? '🚀 CREW VICTORY!' : '👁️ SUSPECT VICTORY!'}
+            </h3>
+            <p style={{ fontWeight: 600 }}>
+              {crewWins
+                ? `The suspect was detected and ejected from the deck.`
+                : `${accusedName} was innocent — the suspect stayed in the deck.`}
+            </p>
+            <p style={{ fontWeight: 600, marginTop: 8 }}>
+              The suspect{imposterPlayers.length > 1 ? 's were' : ' was'}{' '}
+              <span style={{ textTransform: 'uppercase' }}>
+                {imposterPlayers.map((p) => `${p.avatar} ${p.name}`).join(', ') ||
+                  results.imposterName}
+              </span>
+              .
+            </p>
+            <p
+              className="brutal-title"
+              style={{ fontSize: '1.2rem', color: '#000', textShadow: 'none', marginTop: 12 }}
+            >
+              {iWon ? '🎉 YOU WON' : '😞 YOU LOST'}
+              {isImposter ? ' — YOU WERE THE SUSPECT' : ''}
+            </p>
+          </div>
+        )}
+
+        {/* ── Payout ──────────────────────────────────────────────── */}
+        {showCoins && myCoinReward && (
+          <div className="brutal-card" style={{ width: '100%', textAlign: 'left' }}>
+            <div
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+            >
+              <div className="reveal-title-tag">🪙 CREDITS EARNED</div>
+              <span
+                className="brutal-title"
+                style={{ fontSize: '2rem', color: 'var(--neon-yellow)' }}
+              >
+                +{coinCount}
+              </span>
+            </div>
+            <div className="osd-menu" style={{ marginTop: 12 }}>
+              {myCoinReward.baseCoins > 0 && (
+                <div className="osd-menu-row">
+                  <span>PARTICIPATION</span>
+                  <span style={{ color: 'var(--neon-yellow)' }}>+{myCoinReward.baseCoins}</span>
+                </div>
+              )}
+              {myCoinReward.bonusCoins > 0 && (
+                <div className="osd-menu-row">
+                  <span>{isImposter ? 'SUSPECT BONUS' : 'CREW BONUS'}</span>
+                  <span style={{ color: 'var(--neon-green)' }}>+{myCoinReward.bonusCoins}</span>
+                </div>
+              )}
+              <div className="osd-menu-row" style={{ borderTop: '2px dashed #fff', paddingTop: 8 }}>
+                <span>TOTAL</span>
+                <span style={{ color: 'var(--neon-yellow)' }}>+{myCoinReward.total}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Final tally ─────────────────────────────────────────── */}
+        {showWinner && (
+          <div className="brutal-card" style={{ width: '100%', textAlign: 'left' }}>
+            <div className="reveal-title-tag">FINAL VOTE COUNT</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
+              {ranked.map((player) => {
+                const wasImposter = imposterIds.includes(player.id);
+                return (
+                  <div
+                    key={player.id}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10 }}
+                  >
+                    <span style={{ fontSize: '1.1rem' }}>{player.avatar}</span>
+                    <span
+                      className="osd-text"
+                      style={{
+                        flex: 1,
+                        color: wasImposter ? 'var(--neon-magenta)' : '#ddd',
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      {player.name}
+                      {wasImposter ? ' 👁️' : ''}
+                    </span>
+                    <div
+                      style={{
+                        width: 120,
+                        height: 10,
+                        border: '2px solid #000',
+                        background: '#111',
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${(player.votes / maxVotes) * 100}%`,
+                          height: '100%',
+                          background: wasImposter
+                            ? 'var(--neon-magenta)'
+                            : 'var(--neon-cyan)',
+                        }}
+                      />
+                    </div>
+                    <span className="osd-text" style={{ color: '#aaa', width: 18 }}>
+                      {player.votes}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── The two tapes, finally comparable ───────────────────── */}
+        {showWinner && (
+          <div className="results-info-cards">
+            <div className="brutal-card video-reveal-card">
+              <div className="reveal-title-tag">CREW TAPE RECORDING</div>
+              <a
+                href={results.normalVideoUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="reveal-value"
+                style={{ color: 'var(--neon-cyan)', wordBreak: 'break-all' }}
+              >
+                &quot;{tapeLabel(results.normalVideoUrl)}&quot;
+              </a>
+            </div>
+            <div className="brutal-card video-reveal-card">
+              <div className="reveal-title-tag">SUSPECT TAPE RECORDING</div>
+              <a
+                href={results.imposterVideoUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="reveal-value"
+                style={{ color: 'var(--neon-magenta)', wordBreak: 'break-all' }}
+              >
+                &quot;{tapeLabel(results.imposterVideoUrl)}&quot;
+              </a>
+            </div>
+          </div>
+        )}
+
+        {/* ── Actions ─────────────────────────────────────────────── */}
+        {showWinner && (
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+            {isHost && (
+              <button
+                id="play-again-btn"
+                className="btn-brutal green"
+                onClick={() => actions.backToLobby(code)}
+              >
+                ⏮ REWIND &amp; REPLAY
+              </button>
+            )}
+            <button
+              id="shop-btn"
+              className="btn-brutal yellow"
+              onClick={() => router.push('/shop')}
+            >
+              🛒 SHOP
             </button>
-          )}
-          <button
-            id="shop-btn"
-            onClick={() => router.push('/shop')}
-            className="btn-ghost"
-          >
-            🛒 Shop
-          </button>
-          <button
-            id="leave-room-btn"
-            onClick={() => router.push('/dashboard')}
-            className="btn-ghost"
-          >
-            Leave Room
-          </button>
-        </div>
-      )}
+            <button
+              id="leave-room-btn"
+              className="btn-brutal dark"
+              onClick={() => router.push('/dashboard')}
+            >
+              ⏏ LEAVE
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,5 +1,14 @@
 // src/server/gameState.ts
-// In-memory store for all active rooms
+// In-memory store for all active rooms.
+//
+// Phase model follows docs/BUILD-PLAN.md sections 6-8:
+//   lobby -> playing -> words -> deliberation -> results
+//
+//   playing      video plays; each player gets a Ready button when their own
+//                video ends (section 6 Ready Check)
+//   words        randomized turn order, 10s each, one word per player (7)
+//   deliberation ONE 90s window with chat and voting live simultaneously (8)
+//   results      roles revealed, coins awarded (9)
 
 export type PlayerStatus = 'connected' | 'disconnected';
 
@@ -13,16 +22,18 @@ export interface Player {
   status: PlayerStatus;
 }
 
-export type GamePhase = 'lobby' | 'playing' | 'discussion' | 'voting' | 'results';
+export type GamePhase = 'lobby' | 'playing' | 'words' | 'deliberation' | 'results';
 
 export interface RoomSettings {
   isPublic: boolean;
   normalVideoUrl: string;
   imposterVideoUrl: string;
   maxPlayers: number;
-  wordsPerPlayer: number;   // words each player gets in restricted discussion (default 1)
-  imposterCount: number;    // number of imposters (default 1)
-  chatType: 'text' | 'voice' | 'video';
+  wordsPerPlayer: number;   // words each player gets in the word phase
+  imposterCount: number;    // pinned to 1 in Phase 1 (section 16)
+  // 'none' is for groups already talking on Discord/FaceTime — the app shows
+  // no chat UI at all beyond turn indicators (section 4).
+  chatType: 'text' | 'voice' | 'video' | 'none';
   videoCategory: string | null;
 }
 
@@ -34,20 +45,49 @@ export interface RoomState {
   imposterId: string | null;      // primary imposter (backwards compat)
   imposterIds: string[];          // all imposters
   settings: RoomSettings;
-  votes: Record<string, string>;  // voter socketId -> target socketId
-  discussionWords: Record<string, number>;   // socketId -> words used count
-  discussionReady: Record<string, boolean>;  // socketId -> ready to vote
-  discussionOpen: boolean;                   // true when all words used → free chat
-  activePlayerId: string | null;             // socketId of active player whose turn it is
-  discussionTurnOrder: string[];             // player IDs in turn order
-  discussionTurnIndex: number;               // current index in turn order
-  turnTimeLeft: number;                      // time left in seconds for the current turn
+
+  // ── Ready check, section 6 ──
+  videoEnded: Record<string, boolean>;      // socketId -> their video finished
+  readyToAdvance: Record<string, boolean>;  // socketId -> clicked Ready
+  imposterVideoEndedAt: number | null;      // epoch ms, starts the 10s grace
+
+  // ── Word phase, section 7 ──
+  wordsUsed: Record<string, number>;        // socketId -> words submitted
+  turnOrder: string[];                      // randomized player ids
+  turnIndex: number;
+  activePlayerId: string | null;
+  turnTimeLeft: number;                     // seconds left on the current turn
+
+  // ── Deliberation, section 8 ──
+  votes: Record<string, string>;            // voter socketId -> target socketId
+  deliberationEndsAt: number | null;        // epoch ms the 90s window closes
+  voteRound: number;                        // 1, then 2+ for tie re-votes
+  revoteCandidates: string[] | null;        // non-null while a tie is unresolved
+
   createdAt: number;
   gameStartedAt: number | null;
 }
 
 // In-memory room store
 const rooms = new Map<string, RoomState>();
+
+/** Fields reset between rounds and on every fresh game start. */
+function freshRoundState() {
+  return {
+    videoEnded: {} as Record<string, boolean>,
+    readyToAdvance: {} as Record<string, boolean>,
+    imposterVideoEndedAt: null,
+    wordsUsed: {} as Record<string, number>,
+    turnOrder: [] as string[],
+    turnIndex: -1,
+    activePlayerId: null,
+    turnTimeLeft: 0,
+    votes: {} as Record<string, string>,
+    deliberationEndsAt: null,
+    voteRound: 0,
+    revoteCandidates: null,
+  };
+}
 
 export function createRoom(code: string, host: Player, settings: RoomSettings): RoomState {
   const room: RoomState = {
@@ -58,19 +98,16 @@ export function createRoom(code: string, host: Player, settings: RoomSettings): 
     imposterId: null,
     imposterIds: [],
     settings,
-    votes: {},
-    discussionWords: {},
-    discussionReady: {},
-    discussionOpen: false,
-    activePlayerId: null,
-    discussionTurnOrder: [],
-    discussionTurnIndex: -1,
-    turnTimeLeft: 0,
+    ...freshRoundState(),
     createdAt: Date.now(),
     gameStartedAt: null,
   };
   rooms.set(code, room);
   return room;
+}
+
+export function resetRound(room: RoomState): void {
+  Object.assign(room, freshRoundState());
 }
 
 export function getRoom(code: string): RoomState | undefined {
@@ -132,36 +169,6 @@ export function allPlayersReady(room: RoomState): boolean {
   return room.players.every((p) => p.isReady);
 }
 
-export function castVote(code: string, voterSocketId: string, targetSocketId: string): RoomState | null {
-  const room = rooms.get(code);
-  if (!room) return null;
-  // Each player can only vote once
-  if (room.votes[voterSocketId]) return room;
-  room.votes[voterSocketId] = targetSocketId;
-  return room;
-}
-
-export function getVoteTally(room: RoomState): Record<string, number> {
-  const tally: Record<string, number> = {};
-  for (const targetId of Object.values(room.votes)) {
-    tally[targetId] = (tally[targetId] || 0) + 1;
-  }
-  return tally;
-}
-
-export function getMostVoted(room: RoomState): string | null {
-  const tally = getVoteTally(room);
-  let maxVotes = 0;
-  let mostVotedId: string | null = null;
-  for (const [id, count] of Object.entries(tally)) {
-    if (count > maxVotes) {
-      maxVotes = count;
-      mostVotedId = id;
-    }
-  }
-  return mostVotedId;
-}
-
 export function generateRoomCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = '';
@@ -173,43 +180,175 @@ export function generateRoomCode(): string {
   return code;
 }
 
-// ─── Discussion helpers ──────────────────────────────────────────────────────
+// ─── Ready check (section 6) ─────────────────────────────────────────────────
 
-export function addDiscussionWord(code: string, socketId: string): { room: RoomState | null; allDone: boolean } {
-  const room = rooms.get(code);
-  if (!room) return { room: null, allDone: false };
+/** Marks a player's video as finished. Returns true if that was the imposter. */
+export function markVideoEnded(room: RoomState, socketId: string): boolean {
+  room.videoEnded[socketId] = true;
+  const isImposter = room.imposterIds.includes(socketId);
+  if (isImposter && room.imposterVideoEndedAt === null) {
+    room.imposterVideoEndedAt = Date.now();
+  }
+  return isImposter;
+}
 
-  room.discussionWords[socketId] = (room.discussionWords[socketId] || 0) + 1;
+export function markReadyToAdvance(room: RoomState, socketId: string): void {
+  // Only meaningful once their own video has actually finished.
+  if (!room.videoEnded[socketId]) return;
+  room.readyToAdvance[socketId] = true;
+}
 
-  // Check if all players have used all their words
-  const allDone = room.players.every(
-    (p) => (room.discussionWords[p.id] || 0) >= room.settings.wordsPerPlayer
-  );
-  if (allDone && !room.discussionOpen) {
-    room.discussionOpen = true;
+export function connectedPlayers(room: RoomState): Player[] {
+  return room.players.filter((p) => p.status === 'connected');
+}
+
+export function allReadyToAdvance(room: RoomState): boolean {
+  const active = connectedPlayers(room);
+  return active.length > 0 && active.every((p) => room.readyToAdvance[p.id]);
+}
+
+// ─── Word phase (section 7) ──────────────────────────────────────────────────
+
+/** Fisher-Yates. `sort(() => Math.random() - 0.5)` is not a uniform shuffle. */
+function shuffle<T>(input: T[]): T[] {
+  const arr = [...input];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+export function beginWordPhase(room: RoomState): void {
+  room.phase = 'words';
+  room.wordsUsed = {};
+  // Turn order is randomized each round and visible to all players (section 7).
+  room.turnOrder = shuffle(connectedPlayers(room).map((p) => p.id));
+  room.turnIndex = 0;
+  room.activePlayerId = room.turnOrder[0] ?? null;
+  room.turnTimeLeft = TURN_SECONDS;
+}
+
+export const TURN_SECONDS = 10;
+export const DELIBERATION_SECONDS = 90;
+
+export function recordWord(room: RoomState, socketId: string): void {
+  room.wordsUsed[socketId] = (room.wordsUsed[socketId] || 0) + 1;
+}
+
+export function playerFinishedTurn(room: RoomState, socketId: string): boolean {
+  return (room.wordsUsed[socketId] || 0) >= room.settings.wordsPerPlayer;
+}
+
+/** Advances to the next player. Returns false when the phase is over. */
+export function advanceTurn(room: RoomState): boolean {
+  room.turnIndex++;
+  if (room.turnIndex >= room.turnOrder.length) {
+    room.activePlayerId = null;
+    room.turnTimeLeft = 0;
+    return false;
+  }
+  room.activePlayerId = room.turnOrder[room.turnIndex];
+  room.turnTimeLeft = TURN_SECONDS;
+  return true;
+}
+
+// ─── Deliberation & voting (section 8) ───────────────────────────────────────
+
+export function beginDeliberation(room: RoomState): void {
+  room.phase = 'deliberation';
+  room.votes = {};
+  room.voteRound = 1;
+  room.revoteCandidates = null;
+  room.deliberationEndsAt = Date.now() + DELIBERATION_SECONDS * 1000;
+}
+
+export type VoteRejection = 'not_voting' | 'self' | 'already_voted' | 'not_a_candidate' | 'not_eligible';
+
+export function castVote(
+  room: RoomState,
+  voterId: string,
+  targetId: string
+): { ok: true } | { ok: false; reason: VoteRejection } {
+  if (room.phase !== 'deliberation') return { ok: false, reason: 'not_voting' };
+  if (voterId === targetId) return { ok: false, reason: 'self' };
+  if (room.votes[voterId]) return { ok: false, reason: 'already_voted' };
+
+  // During a tie re-vote the ballot is restricted to the tied players, and
+  // only the voters asked to recast may vote (section 8).
+  if (room.revoteCandidates) {
+    if (!room.revoteCandidates.includes(targetId)) {
+      return { ok: false, reason: 'not_a_candidate' };
+    }
   }
 
-  return { room, allDone };
+  room.votes[voterId] = targetId;
+  return { ok: true };
 }
 
-export function setDiscussionReady(code: string, socketId: string): { room: RoomState | null; allReady: boolean } {
-  const room = rooms.get(code);
-  if (!room) return { room: null, allReady: false };
-
-  room.discussionReady[socketId] = true;
-
-  const readyCount = Object.values(room.discussionReady).filter(Boolean).length;
-  const allReady = readyCount >= room.players.length;
-
-  return { room, allReady };
+export function getVoteTally(room: RoomState): Record<string, number> {
+  const tally: Record<string, number> = {};
+  for (const targetId of Object.values(room.votes)) {
+    tally[targetId] = (tally[targetId] || 0) + 1;
+  }
+  return tally;
 }
 
-export function resetDiscussion(room: RoomState): void {
-  room.discussionWords = {};
-  room.discussionReady = {};
-  room.discussionOpen = false;
-  room.activePlayerId = null;
-  room.discussionTurnOrder = [];
-  room.discussionTurnIndex = -1;
-  room.turnTimeLeft = 0;
+/** Everyone still connected who has not yet cast a vote this round. */
+export function pendingVoters(room: RoomState): string[] {
+  return connectedPlayers(room)
+    .map((p) => p.id)
+    .filter((id) => !room.votes[id]);
+}
+
+export type VoteOutcome =
+  | { kind: 'accused'; accusedId: string | null }
+  | { kind: 'revote'; candidates: string[]; eligibleVoters: string[] };
+
+/**
+ * Resolves the current ballot per section 8.
+ *
+ * Single leader -> accused. On a tie, players who backed neither tied
+ * candidate become the swing voters and recast, restricted to those
+ * candidates; players already behind a tied candidate keep their vote. If
+ * there are no swing voters the whole ballot re-runs among the tied players
+ * and loops until somebody switches — the round cannot conclude on a tie.
+ */
+export function resolveVote(room: RoomState): VoteOutcome {
+  const tally = getVoteTally(room);
+  const counts = Object.values(tally);
+
+  // Nobody voted at all (e.g. the timer expired on an idle room): no
+  // accusation, which means the imposter escapes.
+  if (counts.length === 0) return { kind: 'accused', accusedId: null };
+
+  const maxVotes = Math.max(...counts);
+  const topIds = Object.keys(tally).filter((id) => tally[id] === maxVotes);
+
+  if (topIds.length === 1) {
+    return { kind: 'accused', accusedId: topIds[0] };
+  }
+
+  const swingVoters = Object.entries(room.votes)
+    .filter(([, target]) => !topIds.includes(target))
+    .map(([voterId]) => voterId)
+    .filter((id) => room.players.some((p) => p.id === id && p.status === 'connected'));
+
+  const eligibleVoters =
+    swingVoters.length > 0
+      ? swingVoters
+      : connectedPlayers(room).map((p) => p.id);
+
+  return { kind: 'revote', candidates: topIds, eligibleVoters };
+}
+
+/** Clears the ballots that need recasting and opens the next re-vote round. */
+export function beginRevote(room: RoomState, outcome: Extract<VoteOutcome, { kind: 'revote' }>): void {
+  for (const voterId of outcome.eligibleVoters) {
+    delete room.votes[voterId];
+  }
+  room.voteRound++;
+  room.revoteCandidates = outcome.candidates;
+  // A re-vote gets its own fresh window so it cannot expire instantly.
+  room.deliberationEndsAt = Date.now() + DELIBERATION_SECONDS * 1000;
 }

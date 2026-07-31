@@ -29,39 +29,38 @@ export function PresetLibrary({ onSelect }: Props) {
 
   if (loading) {
     return (
-      <div className="bg-bg-800 rounded-xl p-4 mb-4 text-zinc-500 text-sm text-center animate-pulse">
-        Loading presets…
+      <div className="osd-menu" style={{ textAlign: 'center' }}>
+        LOADING SHELF…
       </div>
     );
   }
 
   if (presets.length === 0) {
     return (
-      <div className="bg-bg-800 rounded-xl p-4 mb-4 text-zinc-500 text-sm text-center">
-        No saved presets yet. Fill in video URLs and save them!
+      <div className="osd-menu" style={{ textAlign: 'center', fontSize: '0.85rem' }}>
+        SHELF EMPTY — SAVE A PAIR BELOW
       </div>
     );
   }
 
   return (
-    <div className="bg-bg-800 rounded-xl p-3 mb-4 space-y-2 max-h-48 overflow-y-auto">
+    <div className="osd-menu" style={{ maxHeight: 180, overflowY: 'auto' }}>
+      <div className="osd-menu-title">--- Saved Tape Pairs ---</div>
       {presets.map((preset) => (
-        <div
-          key={preset.id}
-          className="flex items-center justify-between bg-bg-700 rounded-lg px-3 py-2 hover:bg-bg-600 transition-colors group"
-        >
+        <div key={preset.id} className="osd-menu-row" style={{ gap: 8 }}>
           <button
             id={`load-preset-${preset.id}`}
             onClick={() => onSelect(preset)}
-            className="text-left flex-1"
+            className="osd-menu-btn"
+            style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis' }}
           >
-            <p className="text-sm font-medium text-zinc-200">{preset.name}</p>
-            <p className="text-xs text-zinc-500 truncate">{preset.normalVideoUrl.slice(0, 40)}…</p>
+            {preset.name}
           </button>
           <button
             id={`delete-preset-${preset.id}`}
             onClick={() => deletePreset(preset.id)}
-            className="text-zinc-600 hover:text-rose-400 ml-3 opacity-0 group-hover:opacity-100 transition-all text-xs"
+            className="osd-menu-btn"
+            title="Delete preset"
           >
             🗑
           </button>

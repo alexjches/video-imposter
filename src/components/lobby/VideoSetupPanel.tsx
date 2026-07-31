@@ -1,17 +1,32 @@
 'use client';
 // src/components/lobby/VideoSetupPanel.tsx
+// The host loads the two tapes here. Non-hosts only ever see booleans —
+// the URLs themselves never leave the server (see sanitizeRoom).
 
 import { useState, useEffect } from 'react';
 import { RoomPublic, Preset } from '@/types';
+import type { RoomActions } from '@/hooks/useRoom';
 import { isValidVideoUrl, parseVideoUrl } from '@/lib/videoParser';
 import { PresetLibrary } from './PresetLibrary';
 
 interface Props {
   room: RoomPublic;
   isHost: boolean;
-  actions: any;
+  actions: RoomActions;
   code: string;
 }
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '8px',
+  border: '3px solid #000',
+  borderRadius: 6,
+  color: '#000',
+  background: '#fff',
+  fontFamily: 'var(--font-marker)',
+  fontSize: '1rem',
+  marginTop: 5,
+};
 
 export function VideoSetupPanel({ room, isHost, actions, code }: Props) {
   const [normalUrl, setNormalUrl] = useState('');
@@ -62,36 +77,54 @@ export function VideoSetupPanel({ room, isHost, actions, code }: Props) {
     setSaveName('');
   }
 
-  const hasRandomVideoCategory = room.settings.videoCategory && room.settings.videoCategory !== 'custom';
+  const hasRandomVideoCategory =
+    room.settings.videoCategory && room.settings.videoCategory !== 'custom';
+
+  const heading = (
+    <h3
+      className="brutal-title"
+      style={{ fontSize: '1.1rem', color: '#000', textShadow: 'none' }}
+    >
+      📼 TAPE LIBRARY
+    </h3>
+  );
 
   if (hasRandomVideoCategory) {
     return (
-      <div className="glass rounded-2xl p-6">
-        <h3 className="font-bold text-white mb-4">📺 Video Setup</h3>
-        <div className="bg-bg-800 rounded-xl p-4 text-center">
-           <p className="text-zinc-400">
-             Videos will be chosen randomly from the <span className="font-bold capitalize text-white">{room.settings.videoCategory}</span> category when the game starts!
-           </p>
-        </div>
+      <div className="brutal-card yellow" style={{ padding: 16 }}>
+        {heading}
+        <p style={{ fontWeight: 600, fontSize: '0.85rem', marginTop: 8 }}>
+          Two tapes will be pulled at random from the{' '}
+          <span style={{ textTransform: 'uppercase' }}>{room.settings.videoCategory}</span> shelf
+          when the deck rolls.
+        </p>
       </div>
     );
   }
 
   if (!isHost) {
     return (
-      <div className="glass rounded-2xl p-6">
-        <h3 className="font-bold text-white mb-4">📺 Video Setup</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-bg-800 rounded-xl p-4 text-center">
-            <p className="text-xs text-zinc-500 mb-1">Normal Video</p>
-            <span className={`text-2xl ${room.settings.hasNormalVideo ? 'text-emerald-400' : 'text-zinc-600'}`}>
-              {room.settings.hasNormalVideo ? '✓' : '–'}
+      <div className="brutal-card yellow" style={{ padding: 16 }}>
+        {heading}
+        <div className="osd-menu" style={{ marginTop: 12 }}>
+          <div className="osd-menu-row">
+            <span>CREW TAPE:</span>
+            <span
+              style={{
+                color: room.settings.hasNormalVideo ? 'var(--neon-green)' : '#ff5577',
+              }}
+            >
+              {room.settings.hasNormalVideo ? 'LOADED' : 'EMPTY'}
             </span>
           </div>
-          <div className="bg-bg-800 rounded-xl p-4 text-center">
-            <p className="text-xs text-zinc-500 mb-1">Imposter Video</p>
-            <span className={`text-2xl ${room.settings.hasImposterVideo ? 'text-emerald-400' : 'text-zinc-600'}`}>
-              {room.settings.hasImposterVideo ? '✓' : '–'}
+          <div className="osd-menu-row">
+            <span>SUSPECT TAPE:</span>
+            <span
+              style={{
+                color: room.settings.hasImposterVideo ? 'var(--neon-green)' : '#ff5577',
+              }}
+            >
+              {room.settings.hasImposterVideo ? 'LOADED' : 'EMPTY'}
             </span>
           </div>
         </div>
@@ -100,88 +133,102 @@ export function VideoSetupPanel({ room, isHost, actions, code }: Props) {
   }
 
   return (
-    <div className="glass rounded-2xl p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-bold text-white">📺 Video Setup</h3>
+    <div className="brutal-card yellow" style={{ padding: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        {heading}
         <button
           id="toggle-presets-btn"
+          className="btn-brutal dark"
+          style={{ fontSize: '0.75rem', padding: '4px 10px' }}
           onClick={() => setShowPresets(!showPresets)}
-          className="btn-ghost btn-sm text-sm"
         >
-          📚 Presets
+          📚 PRESETS
         </button>
       </div>
 
       {showPresets && <PresetLibrary onSelect={handlePresetLoad} />}
 
-      <div className="space-y-4">
-        {/* Normal Video */}
-        <div>
-          <label className="block text-sm font-medium text-zinc-300 mb-2" htmlFor="panel-normal-url">
-            🎬 Normal Video
-            <span className="text-zinc-500 font-normal ml-2">— Crewmates watch this</span>
-          </label>
-          <input
-            id="panel-normal-url"
-            type="url"
-            value={normalUrl}
-            onChange={(e) => setNormalUrl(e.target.value)}
-            className={`input-field ${normalUrl && !normalValid ? 'border-rose-500' : normalUrl && normalValid ? 'border-emerald-500' : ''}`}
-            placeholder="https://youtube.com/watch?v=..."
-          />
-          {normalUrl && normalValid && (
-            <p className="text-emerald-400 text-xs mt-1">
-              ✓ {parseVideoUrl(normalUrl).type.toUpperCase()} detected
-            </p>
-          )}
-          {normalUrl && !normalValid && (
-            <p className="text-rose-400 text-xs mt-1">⚠ Unrecognized URL format</p>
-          )}
-        </div>
-
-        {/* Imposter Video */}
-        <div>
-          <label className="block text-sm font-medium text-zinc-300 mb-2" htmlFor="panel-imposter-url">
-            👁️ Imposter Video
-            <span className="text-zinc-500 font-normal ml-2">— Only the imposter sees this</span>
-          </label>
-          <input
-            id="panel-imposter-url"
-            type="url"
-            value={imposterUrl}
-            onChange={(e) => setImposterUrl(e.target.value)}
-            className={`input-field ${imposterUrl && !imposterValid ? 'border-rose-500' : imposterUrl && imposterValid ? 'border-emerald-500' : ''}`}
-            placeholder="https://youtube.com/watch?v=..."
-          />
-          {imposterUrl && imposterValid && (
-            <p className="text-emerald-400 text-xs mt-1">
-              ✓ {parseVideoUrl(imposterUrl).type.toUpperCase()} detected
-            </p>
-          )}
-        </div>
-
-        {/* Save as Preset */}
-        {normalUrl && imposterUrl && normalValid && imposterValid && (
-          <div className="flex gap-2 mt-2">
-            <input
-              id="preset-name-input"
-              type="text"
-              value={saveName}
-              onChange={(e) => setSaveName(e.target.value)}
-              className="input-field flex-1 text-sm py-2"
-              placeholder="Preset name (optional save)"
-            />
-            <button
-              id="save-preset-btn"
-              onClick={handleSavePreset}
-              disabled={saving || !saveName.trim()}
-              className="btn-ghost btn-sm"
-            >
-              {saving ? '...' : '💾 Save'}
-            </button>
-          </div>
+      <div style={{ marginTop: 12 }}>
+        <label
+          htmlFor="panel-normal-url"
+          style={{ fontFamily: 'var(--font-brutal)', fontSize: '0.85rem', textTransform: 'uppercase' }}
+        >
+          🎬 Crew tape — everyone but the suspect
+        </label>
+        <input
+          id="panel-normal-url"
+          type="url"
+          value={normalUrl}
+          onChange={(e) => setNormalUrl(e.target.value)}
+          style={{
+            ...inputStyle,
+            borderColor: normalUrl ? (normalValid ? '#00ff88' : '#ff0055') : '#000',
+          }}
+          placeholder="https://youtube.com/watch?v=…"
+        />
+        {normalUrl && normalValid && (
+          <p className="osd-text" style={{ fontSize: '0.7rem', color: '#0a5c33', marginTop: 4 }}>
+            ✓ {parseVideoUrl(normalUrl).type.toUpperCase()} DETECTED
+          </p>
+        )}
+        {normalUrl && !normalValid && (
+          <p className="osd-text" style={{ fontSize: '0.7rem', color: '#8c0030', marginTop: 4 }}>
+            ⚠ UNRECOGNIZED URL FORMAT
+          </p>
         )}
       </div>
+
+      <div style={{ marginTop: 12 }}>
+        <label
+          htmlFor="panel-imposter-url"
+          style={{ fontFamily: 'var(--font-brutal)', fontSize: '0.85rem', textTransform: 'uppercase' }}
+        >
+          👁️ Suspect tape — only they see it
+        </label>
+        <input
+          id="panel-imposter-url"
+          type="url"
+          value={imposterUrl}
+          onChange={(e) => setImposterUrl(e.target.value)}
+          style={{
+            ...inputStyle,
+            borderColor: imposterUrl ? (imposterValid ? '#00ff88' : '#ff0055') : '#000',
+          }}
+          placeholder="https://youtube.com/watch?v=…"
+        />
+        {imposterUrl && imposterValid && (
+          <p className="osd-text" style={{ fontSize: '0.7rem', color: '#0a5c33', marginTop: 4 }}>
+            ✓ {parseVideoUrl(imposterUrl).type.toUpperCase()} DETECTED
+          </p>
+        )}
+        {imposterUrl && !imposterValid && (
+          <p className="osd-text" style={{ fontSize: '0.7rem', color: '#8c0030', marginTop: 4 }}>
+            ⚠ UNRECOGNIZED URL FORMAT
+          </p>
+        )}
+      </div>
+
+      {normalUrl && imposterUrl && normalValid && imposterValid && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'flex-end' }}>
+          <input
+            id="preset-name-input"
+            type="text"
+            value={saveName}
+            onChange={(e) => setSaveName(e.target.value)}
+            style={{ ...inputStyle, flex: 1, fontSize: '0.9rem' }}
+            placeholder="Label this pair…"
+          />
+          <button
+            id="save-preset-btn"
+            className="btn-brutal dark"
+            style={{ fontSize: '0.75rem', padding: '8px 12px' }}
+            onClick={handleSavePreset}
+            disabled={saving || !saveName.trim()}
+          >
+            {saving ? '…' : '💾 SAVE'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

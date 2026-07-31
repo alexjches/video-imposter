@@ -26,7 +26,8 @@ node vhs-frontend-example/server.js         # visual reference, static, :9000
 
 - **Never start the app with `next dev`.** Socket.io is attached to a custom HTTP server in `server.js`; the plain Next dev server has no websocket layer and every room/game feature silently breaks.
 - `npm start` is written as `NODE_ENV=production tsx server.js` (POSIX syntax). On this Windows machine that fails in PowerShell — use the Bash tool, or `$env:NODE_ENV='production'; npx tsx server.js`.
-- No test framework is configured. Verification is `npm run lint`, `npx tsc --noEmit`, and driving the app manually with two browser windows (a second window is needed for anything involving rooms).
+- No test framework is configured. Verification is `npx tsc --noEmit`, `npm run lint`, and `npx next build`.
+- **Game logic is best verified by scripting socket clients**, not by clicking through four browser windows. Boot the server, then drive `socket.io-client` through a full round (create → join ×3 → start → syncReady → videoEnded → readyToAdvance → word ×N → vote → results) asserting on the payloads. A round takes seconds and catches phase-machine regressions that manual play misses. Run such a script from outside the repo with `NODE_PATH=<repo>/node_modules`.
 
 ## Current architecture
 
@@ -40,15 +41,17 @@ Note the stack already diverges from spec §15, which recommended React+Vite / S
 
 **The core secrecy invariant.** The game rests on players not knowing their role. `sanitizeRoom()` in `socketHandlers.ts` strips `normalVideoUrl`/`imposterVideoUrl` from every room broadcast, exposing only `hasNormalVideo`/`hasImposterVideo` booleans. URLs reach clients only through the per-socket `game:assigned` emit. Any new broadcast, event payload, or API response touching room settings must preserve this — leaking a URL breaks the game silently, not loudly.
 
-⚠️ **This invariant is currently incomplete.** `game:assigned` also ships `isImposter: boolean` to the client. No in-game UI renders it, but it's visible in devtools, which violates spec §3 ("role is never shown to anyone"). Under the spec the client should never receive its role until results.
+Roles are covered by the same rule: `game:assigned` carries **only** `videoUrl`. `GameAssignment` deliberately has no `isImposter` field — a client that knows its role can read it from devtools, which defeats the mechanic. Roles first appear in the `game:results` payload, after voting closes. Don't add a role flag to any earlier payload.
 
-**Phase machine** — `lobby → playing → discussion → voting → results`, back to `lobby`. The server owns `room.phase`; `src/hooks/useRoom.ts` mirrors it into React state, and `src/app/room/[code]/page.tsx` is a switch rendering `LobbyScreen` / `GameScreen` / `DiscussionScreen` / `VotingScreen` / `ResultsScreen`. Transitions:
-- `playing → discussion`: only the **host's** `game:videoEnded` fires it (non-hosts' events are ignored).
-- `playing → voting`: shortcut when every player emits `game:readyToSkip`.
-- `discussion → voting`: when every player emits `game:discussionReady`.
-- `voting → results`: when `votescast >= players.length`, via `finalizeResults()`.
+**Phase machine** — `lobby → playing → words → deliberation → results`, back to `lobby`. Names match the spec's vocabulary (sections 6–8). The server owns `room.phase`; `src/hooks/useRoom.ts` mirrors it into React state, and `src/app/room/[code]/page.tsx` switches between `LobbyScreen` / `GameScreen` / `WordsScreen` / `DeliberationScreen` / `ResultsScreen`. Transitions:
+- `playing → words`: **Ready Check** (section 6). Every player reports their own `game:videoEnded`, then clicks Ready (`game:readyToAdvance`). Advances when all are ready, or 10s after the *imposter's* video ends — the server starts that grace timer because it alone knows who the imposter is.
+- `words → deliberation`: when the turn order is exhausted. Each turn is 10s; timing out auto-skips with a blank word.
+- `deliberation → results`: when every connected player has voted, or the 90s window expires — whichever comes first.
+- A **tie** does not resolve to results. `resolveVote()` returns a `revote`, and the round loops (see below).
 
-**Discussion phase** is turn-based with server-side timers. `startDiscussionTurns` builds a turn order of connected players, gives each a 10s window to submit one word, then flips `discussionOpen` to unlock free chat. The countdown is a `setInterval` tracked in the module-level `roomTimers` Map — **every path that ends or restarts a turn must call `clearRoomTimer(code)`**, including disconnects, `game:backToLobby`, and room deletion, or intervals leak and tick against a dead room. Disconnect handling has bespoke logic to splice the leaver out of `discussionTurnOrder` and fix up `discussionTurnIndex`.
+**Timers are server-authoritative.** One `setInterval` per room in the module-level `roomTimers` Map, driven through `setRoomTimer()`/`clearRoomTimer()`. Phases are sequential so a single slot suffices. **Every path that ends a phase must clear it** — disconnects, `game:backToLobby`, room deletion — or intervals tick against a dead room. Each tick re-reads the room via `getRoom()` and bails if the phase moved on, so a stale timer cannot corrupt a later phase.
+
+**Tie-breaking (section 8)** lives in `resolveVote()` / `beginRevote()` in `gameState.ts`. On a tie, voters who backed *neither* tied candidate are the swing voters: only their ballots are cleared, and they recast restricted to the tied pair. Voters already behind a tied candidate keep their vote. If there are no swing voters at all, the whole ballot re-runs among the tied players and loops until somebody switches — the round cannot conclude on a tie. `revoteCandidates` being non-null is what marks a restricted ballot.
 
 **Adding a socket event requires edits in three places**, and doing two of three fails silently:
 1. `src/server/socketHandlers.ts` — the handler, plus any `gameState.ts` mutator it needs.
@@ -67,32 +70,30 @@ Note the stack already diverges from spec §15, which recommended React+Vite / S
 
 Verified against `src/` as of this file's writing. These are bugs-against-spec, not design choices — fix toward the spec column, and don't "preserve existing behavior" here.
 
-| Area | Spec (`docs/BUILD-PLAN.md`) | Code today |
-|---|---|---|
-| Role secrecy | Never revealed until results (§3) | `game:assigned` sends `isImposter` to the client |
-| Imposter count | 1 default; 2 only at 7+ players (§3) | Up to 3, clamped to `min(3, floor(players/2))` |
-| 2-imposter flow | Two full word+vote rounds, accused removed between them (§3) | Not implemented — single round |
-| Lobby size | 4–10 (§20) | `maxPlayers: 12`, starts at 2 |
-| 1-imposter rewards | Crew win 75 / lose 50; imposter win 100 / lose 50 (§9) | `BASE 50` + `CREW_WIN_BONUS 100` / `IMPOSTER_WIN_BONUS 150` → 150 / 200 |
-| Tie-breaks | Elaborate re-vote loops, imposter-vs-imposter auto-resolve (§8) | `getMostVoted()` returns the first max; no tie handling |
-| Vote timer | 90s window, server-authoritative (§8) | `VOTE_DURATION = 90` is client-side cosmetic; server never times out a vote |
-| Discussion + vote | One combined 90s window, chat and voting simultaneous (§8) | Separate `discussion` then `voting` phases |
-| Ready check | Per-player Ready button; advance on all-ready **or** 10s after the imposter's video ends (§6) | Host-only `game:videoEnded` triggers the transition |
-| Genres | Sports, Memes, Video Games, Music, Custom (§4) | `src/lib/videoCategories.ts` has memes, sports, music only |
-| Video config | `/content/videos.json`, store bare YouTube IDs, no-repeat per lobby session (§14) | Hardcoded full-URL pairs in a `.ts` file; no no-repeat tracking |
-| Comms modes | text / voice / video / **none** (§4) | `chatType` is `'text' \| 'voice' \| 'video'`; no `none` |
-| Voting visibility | Host picks Public or Anonymous (§4) | Always broadcasts a live tally |
-| Currency | Persistent, account-bound (§9, §11) | localStorage only |
-| Accounts | Email / Google / **Apple**; Discord later (§11) | Email / Google / **Discord**; no Apple |
-| Host controls | Manual host transfer, mid-lobby settings changes (§4) | Auto-transfer on host leave only |
-| Not built at all | Emoji reactions during video (§5), premium tier (§12), ads (§13), shop/loot boxes (§10), profanity filter (§17), report/block (§17), friends list (§11), public matchmaking (§16) | — |
+Phase 1 (spec §16) closed most of the original gaps. **Fixed and verified:** role secrecy, single imposter, lobby size 4–10, reward values, combined 90s deliberation window, server-authoritative vote timer, split-vote re-vote and tie-break loops, per-player Ready Check, and the `none` comms mode.
 
-Spec §16 gives the intended build order (Phase 1 core loop → 2 social → 3 economy → 4 growth). Most of the table above is Phase 1–2 work.
+Still outstanding:
+
+| Area | Spec (`docs/BUILD-PLAN.md`) | Code today | Phase |
+|---|---|---|---|
+| Genres | Sports, Memes, Video Games, Music, Custom (§4) | `videoCategories.ts` has memes, sports, music | 2 |
+| Video config | `/content/videos.json`, bare YouTube IDs, 10–15 per genre, no-repeat per lobby session (§14) | Hardcoded full-URL pairs in a `.ts` file, 2 pairs per genre, no no-repeat | 2 |
+| 2-imposter flow | Two word+vote rounds, accused removed between them (§3) | Not implemented; `imposterCount` pinned to 1 | 2 |
+| Voting visibility | Host picks Public or Anonymous (§4) | Always broadcasts a live tally | 3 |
+| Currency | Persistent, account-bound (§9, §11) | localStorage only (`useShop.ts`) | 3 |
+| Accounts | Email / Google / **Apple**; Discord later (§11) | Email / Google / **Discord**; no Apple | 2 |
+| Host controls | Manual host transfer, mid-lobby settings changes (§4) | Auto-transfer on host leave only | 2 |
+| Reconnect | — | Identity is `socket.id`, so a refresh makes a new player and drops you from the round | — |
+| Not built | Emoji reactions during video (§5), premium (§12), ads (§13), shop/loot boxes (§10), profanity filter (§17), report/block (§17), friends (§11), matchmaking (§16) | — | 2–4 |
+
+The reconnect row is not in the spec but blocks several things that are (persistent currency, host transfer surviving a refresh). It needs room state keyed on something more durable than `socket.id`.
 
 ## Conventions
 
 - Import via `@/*` → `src/*`.
-- **Styling: build toward `vhs-frontend-example/`** (VHS/CRT theme — `styles.css` there is the reference). The existing `src/app/globals.css` classes (`glass`, `card`, `btn-primary`, `input-field`, `grid-bg`, `neon-*`) and the `tailwind.config.js` palette are the *old* look the spec says to discard. Reuse them only for consistency inside screens you aren't reskinning yet; don't extend that system for new work, and don't cite it as "the project's design language."
+- **Styling is the VHS/CRT system in `src/app/vhs.css`** — a verbatim copy of `vhs-frontend-example/styles.css`, imported first by `globals.css`. Build with its classes (`btn-brutal`, `brutal-card`, `vhs-player`, `osd-menu`, `osd-text`, `modal-card`, `brutal-input`, `view-panel`, `gartic-*`, `lobby-item-*`). Don't edit `vhs.css` — it tracks the reference; app-only additions go in the "App additions" block in `globals.css`.
+  - Every route except `/shop` is ported: `page.tsx` (landing), `/dashboard` (lobby router), `/login`, `/signup`, and all five room phases. `<CrtShell>` supplies the viewport frame — pass `home` for the scrollable marketing/console layout, omit it for the in-game `.view-panel` stack.
+  - The LEGACY block at the bottom of `globals.css` (`glass`, `card`, `btn-primary`, `input-field`, `grid-bg`, `neon-*`) plus the `tailwind.config.js` violet palette are the *old* look spec §21 discards. Only `/shop` still uses them. Don't extend that system, and delete the block once the shop moves.
 - Server-side sanitize all user input at the handler: words stripped of whitespace and capped at 30 chars, chat at 300, `wordsPerPlayer` clamped 1–10, `imposterCount` clamped. Keep this up for new events.
 - Env: `.env.example` is the template; `.env` and `.env.local` exist locally and are gitignored. `DATABASE_URL` points at SQLite (`file:./dev.db`); switching to Postgres also means editing `provider` in `prisma/schema.prisma`.
 - YouTube access stays on the official IFrame API — no scraping or downloading (spec §5, ToS).
@@ -103,4 +104,4 @@ Vercel cannot host this — serverless functions don't hold persistent websocket
 
 ## `vhs-frontend-example/`
 
-Standalone static prototype of the VHS/CRT UI ("Tape Suspect") — plain HTML/CSS/JS on its own file server at port 9000. Shares no code with `src/` and isn't part of the Next build. It is currently **untracked in git**; since the spec makes it the authoritative visual reference, consider committing it.
+Standalone static prototype of the VHS/CRT UI ("Tape Suspect") — plain HTML/CSS/JS on its own file server at port 9000. Committed as of `197389f`. Shares no code with `src/` and isn't part of the Next build, but it *is* the visual source of truth: `index.html` covers the in-game views, `home.html` the landing + cosmetics shop, `join-host.html` the lobby router. Read the matching section there before designing a new screen.

@@ -9,14 +9,8 @@ import { PrismaAdapter } from '@auth/prisma-adapter';
 import bcrypt from 'bcryptjs';
 import { prisma } from './prisma';
 
-const AVATARS = [
-  '🎮', '👾', '🕵️', '🎭', '🦊', '🐺', '🦁', '🐸',
-  '🤖', '👽', '🧙', '🦄', '🐙', '🦋', '🐲', '🌙',
-];
-
-export function randomAvatar(): string {
-  return AVATARS[Math.floor(Math.random() * AVATARS.length)];
-}
+// Re-exported for the callers that already import it from here.
+export { randomAvatar } from './avatars';
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as any,
