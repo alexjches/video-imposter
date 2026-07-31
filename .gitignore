@@ -5,3 +5,7 @@ node_modules
 dist
 *.log
 .DS_Store
+
+# Local SQLite dev database — churns on every write, not shared state.
+prisma/*.db
+prisma/*.db-journal
