@@ -175,7 +175,7 @@ function DashboardContent() {
     return (
       <CrtShell home badge="LOBBY ROUTER" badgeColor="var(--neon-cyan)">
         <div style={{ display: 'grid', placeItems: 'center', flex: 1 }}>
-          <div className="osd-text" style={{ color: 'var(--neon-cyan)' }}>
+          <div className="osd-text" style={{ color: 'var(--ink)' }}>
             SPOOLING UP…
           </div>
         </div>
@@ -217,8 +217,8 @@ function DashboardContent() {
                 START PLAYING ⏵
               </button>
             </div>
-            <p className="osd-text" style={{ textAlign: 'center', color: '#aaa', marginTop: 10 }}>
-              <Link href="/signup" style={{ color: 'var(--neon-cyan)' }}>
+            <p className="osd-text" style={{ textAlign: 'center', color: 'var(--ink-soft)', marginTop: 10 }}>
+              <Link href="/signup" style={{ color: 'var(--link-warm)' }}>
                 CREATE AN ACCOUNT
               </Link>{' '}
               TO SAVE PRESETS &amp; HISTORY
@@ -654,7 +654,7 @@ export default function DashboardPage() {
       fallback={
         <CrtShell home badge="LOBBY ROUTER" badgeColor="var(--neon-cyan)">
           <div style={{ display: 'grid', placeItems: 'center', flex: 1 }}>
-            <div className="osd-text" style={{ color: 'var(--neon-cyan)' }}>
+            <div className="osd-text" style={{ color: 'var(--ink)' }}>
               SPOOLING UP…
             </div>
           </div>

@@ -83,7 +83,7 @@ export default function ShopPage() {
           <h2 className="brutal-title" style={{ fontSize: '2.4rem' }}>
             🛒 COSMETICS SHOP
           </h2>
-          <p className="osd-text" style={{ color: '#aaa', marginTop: 6 }}>
+          <p className="osd-text" style={{ color: 'var(--ink-soft)', marginTop: 6 }}>
             Customize your VHS tapes &amp; VCR players
           </p>
         </div>

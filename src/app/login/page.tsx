@@ -83,7 +83,7 @@ export default function LoginPage() {
 
           <div
             className="osd-text"
-            style={{ textAlign: 'center', color: '#888', margin: '14px 0 10px' }}
+            style={{ textAlign: 'center', color: 'var(--ink-soft)', margin: '14px 0 10px' }}
           >
             ─── OR ───
           </div>
@@ -107,13 +107,13 @@ export default function LoginPage() {
             </button>
           </div>
 
-          <p className="osd-text" style={{ textAlign: 'center', color: '#aaa', marginTop: 16 }}>
+          <p className="osd-text" style={{ textAlign: 'center', color: 'var(--ink-soft)', marginTop: 16 }}>
             NO ACCOUNT?{' '}
-            <Link href="/signup" style={{ color: 'var(--neon-cyan)' }}>
+            <Link href="/signup" style={{ color: 'var(--link-warm)' }}>
               FORMAT A NEW ONE
             </Link>
             {' · '}
-            <Link href="/" style={{ color: '#888' }}>
+            <Link href="/" style={{ color: 'var(--ink-soft)' }}>
               HOME
             </Link>
           </p>

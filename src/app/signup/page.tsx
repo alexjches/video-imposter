@@ -150,13 +150,13 @@ export default function SignupPage() {
             </div>
           </form>
 
-          <p className="osd-text" style={{ textAlign: 'center', color: '#aaa', marginTop: 14 }}>
+          <p className="osd-text" style={{ textAlign: 'center', color: 'var(--ink-soft)', marginTop: 14 }}>
             ALREADY HAVE A TAPE?{' '}
-            <Link href="/login" style={{ color: 'var(--neon-cyan)' }}>
+            <Link href="/login" style={{ color: 'var(--link-warm)' }}>
               SIGN IN
             </Link>
             {' · '}
-            <Link href="/" style={{ color: '#888' }}>
+            <Link href="/" style={{ color: 'var(--ink-soft)' }}>
               HOME
             </Link>
           </p>
