@@ -218,7 +218,7 @@ function DashboardContent() {
               </button>
             </div>
             <p className="osd-text" style={{ textAlign: 'center', color: 'var(--ink-soft)', marginTop: 10 }}>
-              <Link href="/signup" style={{ color: 'var(--link-warm)' }}>
+              <Link href="/signup" style={{ color: 'var(--link-accent)' }}>
                 CREATE AN ACCOUNT
               </Link>{' '}
               TO SAVE PRESETS &amp; HISTORY

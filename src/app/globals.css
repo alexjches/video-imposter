@@ -16,175 +16,124 @@
    Fixes and extras the static prototype had no need for. New shared CSS
    goes here — never in vhs.css, which tracks the reference verbatim.
 
-   Note there is no body override: every route renders inside <CrtShell>,
-   whose .crt-viewport is position:fixed and owns its own scrolling, so
-   vhs.css's locked body (`overflow: hidden; display: flex`) is what we
-   want. A page added outside CrtShell inherits that lock and must scroll
-   an inner container.
+   Note there is no body override beyond the palette block below: every
+   route renders inside <CrtShell>, whose .crt-viewport is position:fixed
+   and owns its own scrolling, so vhs.css's locked body (`overflow:
+   hidden; display: flex`) is what we want. A page added outside CrtShell
+   inherits that lock and must scroll an inner container.
    ------------------------------------------------------------------- */
 
-/* ── Y2K chrome palette ───────────────────────────────────────────────
-   Derived from the nintendo-2001 DESIGN.md (Awesome DESIGN.md collection):
-   a periwinkle "console chrome" canvas carrying carbon-navy command slabs,
-   with warm colour rationed to wayfinding. Adopted to get the near-black
-   field off the screen while keeping the VHS/CRT identity.
+/* ── Arcade neon palette ──────────────────────────────────────────────
+   Deep indigo field, purple panels, saturated neon chips. This is the
+   direction vhs.css was already pointing (#080312 with a #32165c wash)
+   taken deliberately and pushed to full saturation.
 
-   The split that makes this work: the ROOM goes bright (field, hero,
-   gartic panels, modals, lobby rows), the HARDWARE stays dark (VCR
-   chassis, tape bodies, CRT/monitor screens, OSD overlays). A VCR is dark
-   plastic and a screen is black when off — brightening those would read as
-   a broken theme, not a lighter one. Carbon slabs on periwinkle chrome is
-   also exactly the reference's own structure.
+   This is a DARK room, so unlike the chrome palette it replaces there is
+   no bright-room / dark-hardware split to maintain: the VCR chassis,
+   tape bodies and CRT screens were always dark, and a dark field is what
+   they were designed against. That makes this the cheapest theme to
+   hold — almost all of it is re-pointed tokens rather than surface
+   overrides, and the in-game screens need nothing at all.
 
-   The --neon-* accents are deliberately unchanged: every one of them is
-   used as a filled chip behind a 4px black border, so they read as well on
-   chrome as they did on black, and the in-game screens stay pixel-identical.
+   --ink and --ink-soft keep their names and take dark-surface values, so
+   the inline text colours in the login, signup, shop and dashboard pages
+   follow the theme automatically. Only --link-warm was renamed, to
+   --link-accent: it now holds cyan, and a token called "warm" holding a
+   cold colour is the kind of thing that misleads six months later.
    ------------------------------------------------------------------- */
 :root {
-  --chrome:        #7a8aba;  /* periwinkle metallic — the field           */
-  --chrome-raised: #8ba1d4;  /* raised mid panels                         */
-  --chrome-sky:    #9fbee7;  /* pale sky — large panel fills              */
-  --chrome-lav:    #acace7;  /* pale lavender — hero wash                 */
-  --chrome-ice:    #c0d5e6;  /* pale ice — modal fill                     */
-  --chrome-indigo: #3d4f97;  /* bevel + secondary text on light           */
-  --chrome-muted:  #60619c;  /* recessed chrome, tertiary text            */
-  --surface:       #ffffff;  /* content cards                             */
-  --ink:           #21242e;  /* primary text on light                     */
-  --ink-soft:      #3d4f97;  /* secondary text on light                   */
-  --amber:         #ecab37;  /* utility / badges                          */
-  --signal:        #f68d1f;  /* forward + submit cues                     */
-  --nav-gold:      #e48600;  /* warm accent on carbon slabs               */
-  --link-warm:     #6b3f00;  /* nav-gold darkened for TEXT links on light:
-                                #e48600 only reaches 2.2:1 on the pale
-                                modal, this reaches ~4.2:1 and still reads
-                                as "warm = action"                        */
+  --field:      #1a0b3d;  /* the room                                   */
+  --field-wash: #2b1063;  /* radial bloom behind it                     */
+  --panel:      #3d1a6b;  /* raised panels, modal core                  */
+  --slab:       #0d0520;  /* footer, deepest chrome                     */
 
-  /* Retune the two "dark" tokens from purple-black to the reference's
-     carbon navy. Everything already built on them — header, footer,
-     .brutal-card, .shop-item-card, .btn-brutal.dark, .camcorder-hud,
-     .option-btn — becomes a carbon command slab for free. */
-  --bg-dark:   #21242e;
-  --bg-darker: #171922;
+  --ink:        #ffffff;  /* primary text on dark                       */
+  --ink-soft:   #b9a6e8;  /* secondary text                             */
+  --ink-mute:   #8b78bd;  /* tertiary — codes, timestamps               */
+  --link-accent: #00e5ff; /* text links                                 */
+
+  /* Accents shifted to the arcade set. Yellow is deliberately untouched:
+     it is the wordmark, the VHS EFFECT button and the active shop tab,
+     and #ffee00 already belongs in this palette. */
+  --neon-magenta: #ff2e88;
+  --neon-cyan:    #00e5ff;
+  --neon-green:   #b4ff39;
+  --neon-sunset:  #ff8c42;  /* spare fourth accent, not yet used        */
+
+  /* Everything already built on these — header, .brutal-card,
+     .shop-item-card, .btn-brutal.dark, .camcorder-hud, .option-btn —
+     picks up the purple for free. */
+  --bg-dark:   #2b1063;
+  --bg-darker: #1a0b3d;
 }
 
 /* ── The field ─────────────────────────────────────────────────────── */
 /* .crt-viewport is fixed and full-bleed, so it, not body, is what you
    actually see; both are set so a page rendered outside CrtShell matches. */
 body {
-  background-color: var(--chrome);
+  background-color: var(--field);
   background-image:
-    radial-gradient(circle at 50% 30%, var(--chrome-lav) 0%, transparent 70%),
-    linear-gradient(rgba(33, 36, 46, 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(33, 36, 46, 0.07) 1px, transparent 1px);
+    radial-gradient(circle at 50% 30%, var(--field-wash) 0%, transparent 70%),
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
   color: var(--ink);
 }
 
 .crt-viewport {
-  background-color: var(--chrome);
+  background-color: var(--field);
   background-image:
-    radial-gradient(ellipse at 50% 22%, var(--chrome-lav) 0%, transparent 62%),
-    linear-gradient(rgba(33, 36, 46, 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(33, 36, 46, 0.07) 1px, transparent 1px);
+    radial-gradient(ellipse at 50% 22%, var(--field-wash) 0%, transparent 62%),
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
   background-size: 100% 100%, 40px 40px, 40px 40px;
 }
 
-/* The scanline and vignette overlays are black-alpha, so they still read as
-   CRT texture over chrome — left alone on purpose. */
-
-/* ── Bright panels (the "room") ────────────────────────────────────── */
+/* ── Panels ────────────────────────────────────────────────────────── */
 .hero-section {
   background:
-    radial-gradient(ellipse at 50% 40%, rgba(172, 172, 231, 0.60) 0%, transparent 65%),
-    radial-gradient(ellipse at 20% 80%, rgba(246, 141, 31, 0.22) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(236, 171, 55, 0.20) 0%, transparent 50%);
+    radial-gradient(ellipse at 50% 40%, rgba(61, 26, 107, 0.85) 0%, transparent 65%),
+    radial-gradient(ellipse at 20% 80%, rgba(255, 46, 136, 0.20) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(0, 229, 255, 0.14) 0%, transparent 50%);
 }
 
-.gartic-main-box {
-  background: rgba(159, 190, 231, 0.92);
-  color: var(--ink);
-}
+.gartic-main-box { background: rgba(43, 16, 99, 0.85); }
+.gartic-panel    { background: rgba(26, 11, 61, 0.90); }
 
-.gartic-panel {
-  background: var(--surface);
-  color: var(--ink);
-}
-
-/* Lighter than the hero wash on purpose: modals carry the most small OSD
-   text in the app, and against a lavender/sky fill --ink-soft only reached
-   ~3.5:1. Against ice/white it clears 5:1. */
 .modal-card {
-  background: radial-gradient(circle at 50% 30%, var(--surface) 0%, var(--chrome-ice) 100%);
-  color: var(--ink);
+  background: radial-gradient(circle at 50% 30%, var(--panel) 0%, #1f0d4d 100%);
 }
 
-.modal-overlay { background: rgba(33, 36, 46, 0.72); }
+.modal-overlay { background: rgba(13, 5, 32, 0.85); }
 
-.lobby-item-card { background: rgba(255, 255, 255, 0.86); }
-.lobby-item-card:hover:not(.full-lobby) { background: var(--surface); }
+.lobby-item-card { background: rgba(61, 26, 107, 0.55); }
+.lobby-item-card:hover:not(.full-lobby) { background: rgba(61, 26, 107, 0.82); }
 
-.shop-tab { background: var(--chrome-raised); color: var(--ink); }
+/* vhs.css gives the shop tabs a neutral #2a2a3a, which reads as dirty grey
+   next to saturated purple. Bring them onto the palette. */
+.shop-tab { background: var(--panel); color: var(--ink-soft); }
 .shop-tab:hover:not(.active) { color: var(--ink); }
 
-/* ── Secondary text that used to sit on near-black ─────────────────── */
+/* ── Muted text, unified on the tokens ─────────────────────────────────
+   vhs.css sets these individually to #bbb / #ccc / #cdaaff / #e5d5ff /
+   #a78ccf / #aaa / #888 — six greys and lavenders doing one job. Routing
+   them through two tokens is what lets a future theme swap be a token
+   edit rather than another sweep of the stylesheet. */
 .hero-subtitle,
 .intro-sub,
 .slide-desc,
 .modal-subtitle,
 .avatar-helper-text,
+.form-section-title,
 .lobby-item-players { color: var(--ink-soft); }
 
 .lobby-item-host { color: var(--ink); }
-.lobby-item-code { color: var(--chrome-muted); }
+.lobby-item-code { color: var(--ink-mute); }
 
-/* .form-section-title is the one muted label that stayed on a carbon card
-   (the host-lobby panel), so it moves the other way — off #ccc grey and up
-   to pale sky, the reference's own "label on carbon" colour. */
-.form-section-title { color: var(--chrome-sky); }
-
-/* .brutal-label is neon-yellow, which works on the dashboard's carbon cards
-   but disappears on the pale login/signup modal. Scope it by surface. */
-.modal-card .brutal-label { color: var(--ink); }
-.brutal-card .brutal-label { color: var(--neon-yellow); }
-
-/* .intro-heading was neon-cyan on what is now a white panel — 1.4:1. Chrome
-   indigo keeps it a cool blue heading and takes it to ~7.5:1. */
-.intro-heading { color: var(--chrome-indigo); }
-
-/* The landing carousel's chat bubbles are dark, so they must opt out of the
-   ink default body colour they now inherit. */
-.chat-mini-bubble { color: #ffffff; }
-
-
-/* ── Chips that were black-alpha washes; solid carbon reads cleanly on
-      chrome where a 30% black veil just looked muddy. ───────────────── */
-.balance-pill,
-.equipped-pill,
-.carousel-arrow { background: var(--bg-dark); }
-
-.equipped-pill span:first-child { color: var(--chrome-sky); }
-
-.carousel-dot { background: rgba(33, 36, 46, 0.25); }
-.carousel-dot:hover { background: rgba(33, 36, 46, 0.6); }
-
-/* Bare neon-cyan text vanished against chrome. Make it a carbon chip so it
-   mirrors the coin balance-pill at the other end of the same row. */
-.scroll-to-shop-link {
-  background: var(--bg-dark);
-  color: var(--amber);
-  border-color: var(--border-color);
-}
-.scroll-to-shop-link:hover {
-  background: var(--bg-dark);
-  border-color: var(--border-color);
-  color: var(--signal);
-  text-shadow: none;
-}
-
-/* ── Carbon footer slab (was #0a0414 with a purple hairline) ───────── */
+/* ── Footer slab ───────────────────────────────────────────────────── */
 footer {
-  background-color: var(--bg-dark);
-  border-top: 2px solid var(--chrome-indigo);
-  color: var(--chrome-raised); /* --chrome-muted only reached 2.7:1 here */
+  background-color: var(--slab);
+  border-top: 2px solid var(--panel);
+  color: var(--ink-mute);
 }
 
 /* vhs.css defines .home-scroll-area as `flex: 1; overflow-y: auto`, then a
@@ -227,18 +176,14 @@ footer {
 /* The prototype's scrollbar styling only ever covered one shop panel; every
    VHS screen has scrollable regions, so apply it globally. */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: rgba(33, 36, 46, 0.14); }
+::-webkit-scrollbar-track { background: rgba(13, 5, 32, 0.55); }
 ::-webkit-scrollbar-thumb {
-  background: var(--chrome-indigo);
+  background: var(--panel);
   border: 2px solid transparent;
   background-clip: padding-box;
   border-radius: 4px;
 }
-::-webkit-scrollbar-thumb:hover { background: var(--nav-gold); }
-
-/* The shop modal's grid pins its own darker track; it now sits on the pale
-   modal-card, so match the light treatment above. */
-.shop-modal-card .shop-grid::-webkit-scrollbar-track { background: rgba(33, 36, 46, 0.14); }
+::-webkit-scrollbar-thumb:hover { background: var(--neon-magenta); }
 
 /* The prototype centres the OWNED stamp on the card, which works there only
    because its cards clip the name/price/buy rows. Ours show them, so centre
@@ -269,4 +214,3 @@ footer {
   0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
   100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
 }
-

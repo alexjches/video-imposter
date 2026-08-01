@@ -109,7 +109,7 @@ export default function LoginPage() {
 
           <p className="osd-text" style={{ textAlign: 'center', color: 'var(--ink-soft)', marginTop: 16 }}>
             NO ACCOUNT?{' '}
-            <Link href="/signup" style={{ color: 'var(--link-warm)' }}>
+            <Link href="/signup" style={{ color: 'var(--link-accent)' }}>
               FORMAT A NEW ONE
             </Link>
             {' · '}

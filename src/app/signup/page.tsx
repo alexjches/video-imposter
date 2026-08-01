@@ -152,7 +152,7 @@ export default function SignupPage() {
 
           <p className="osd-text" style={{ textAlign: 'center', color: 'var(--ink-soft)', marginTop: 14 }}>
             ALREADY HAVE A TAPE?{' '}
-            <Link href="/login" style={{ color: 'var(--link-warm)' }}>
+            <Link href="/login" style={{ color: 'var(--link-accent)' }}>
               SIGN IN
             </Link>
             {' · '}
